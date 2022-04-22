@@ -8,6 +8,12 @@ export interface IToken {
 export type Erc20Token = { [erc20: string]: IToken };
 
 export const Coin : Erc20Token = {
+    USDT: {
+        symbol: "USDT",
+        name: "Tether USD",
+        decimals: 6,
+        address: "0xc2132d05d31c914a87c6611c10748aeb04b58e8f",
+      },
     USDC: {
       symbol: "USDC",
       name: "USDC",
@@ -31,5 +37,11 @@ export const Coin : Erc20Token = {
         name: "Wrapped Ether",
         decimals: 18,
         address: "0x7ceb23fd6bc0add59e62ac25578270cff1b9f619",
+    },
+    WMATIC: {
+      symbol: "WMATIC",
+      name: "Wrapped Matic",
+      decimals: 18,
+      address: "0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270",
     },
 }

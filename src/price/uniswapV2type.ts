@@ -5,14 +5,14 @@ export const getPriceOnUniV2 = async (
     tokenOut: string,
     amountIn: BigNumber,
     contract: Contract
-) : Promise<BigNumber> => {
+) : Promise<[BigNumber, BigNumber]> => {
     
-    var price = await contract.callStatic.getAmountsOut(
+    var price = contract.callStatic.getAmountsOut(
         amountIn,
         [
             tokenIn,
             tokenOut
         ]
     )
-    return price[1]
+    return price
 }

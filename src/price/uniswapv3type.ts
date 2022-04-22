@@ -21,16 +21,16 @@ export const getPriceOnUniV3 = async (
         var fee = 3000
     }
 
-    var quotedAmountOut = await contract.callStatic.quoteExactInputSingle(
+    var quotedAmountOut = contract.callStatic.quoteExactInputSingle(
         tokenIn,
         tokenOut,
         fee,
         amountIn,
         0
     );
-    if (!BigNumber.isBigNumber(quotedAmountOut)) {
-        return getBigNumber(0);
-    }
+    // if (!BigNumber.isBigNumber(quotedAmountOut)) {
+    //     return getBigNumber(0);
+    // }
     return quotedAmountOut;
 };
 
