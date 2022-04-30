@@ -1,4 +1,5 @@
 import { BigNumber, Contract } from "ethers";
+import { IToken } from "../address/coin";
 import { getBigNumber } from "../utils/general";
 
 type FeeMap = {
@@ -9,21 +10,21 @@ type FeeMap = {
   
 
 export const getPriceOnUniV3 = async (
-    tokenIn: string,
-    tokenOut: string,
+    tokenIn: IToken,
+    tokenOut: IToken,
     amountIn: BigNumber,
     contract: Contract
 ): Promise<BigNumber> => {
 
     try {
-        var fee = uniswapV3Fee[tokenIn][tokenOut]
+        var fee = uniswapV3Fee[tokenIn.symbol][tokenOut.symbol]
     } catch(error) {
         var fee = 3000
     }
 
     var quotedAmountOut = contract.callStatic.quoteExactInputSingle(
-        tokenIn,
-        tokenOut,
+        tokenIn.address,
+        tokenOut.address,
         fee,
         amountIn,
         0
@@ -37,9 +38,17 @@ export const getPriceOnUniV3 = async (
 export const uniswapV3Fee: FeeMap = {
     USDC: {
       WETH: 500,
+      WMATIC: 500,
+      WBTC: 3000,
     },
     WETH: {
         USDC: 500,
+    },
+    WMATIC: {
+        USDC: 500,
+    },
+    WBTC: {
+        USDC: 3000,
     }
 }
 
