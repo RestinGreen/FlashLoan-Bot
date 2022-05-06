@@ -2,12 +2,13 @@ import { BigNumber, Contract, utils } from "ethers"
 import { Dex, dex_dict, DexData, DexType } from "../address/dex_data"
 import IUniswapV2Router02 from "@uniswap/v2-periphery/build/IUniswapV2Router02.json"
 import QuoterV3 from "@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json"
-import { alchemyProviderHTTP, getBigNumber } from "../utils/general"
-import { getPriceOnUniV2 } from "./uniswapV2type"
-import { getPriceOnUniV3 } from "./uniswapv3type"
+import { getBigNumber } from "../utils/general"
+import { getPriceOnUniV2 } from "./uniswapV2/uniswapV2type"
+import { getPriceOnUniV3 } from "./uniswapV3/uniswapv3type"
 import { Coin, Erc20Token, IToken } from "../address/coin"
 import { id, parseUnits } from "ethers/lib/utils"
-import { MaxRoute } from "../types/maxRoute"
+import { RouteNode } from "../types/maxRoute"
+import { provider } from "../config"
 
 type Amounts = {
     bought: Promise<BigNumber | [BigNumber, BigNumber]>,
@@ -38,7 +39,7 @@ const createContracts1 = () => {
             new Contract(
                 value.address,
                 value.type == 0 ? IUniswapV2Router02.abi : QuoterV3.abi,
-                alchemyProviderHTTP))
+                provider))
 
     }
 
@@ -74,8 +75,10 @@ const getPrice1 = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: ITok
 
 }
 
-
+const hopTokens: IToken[] = [Coin.USDC, Coin.WMATIC, Coin.WETH, Coin.WBTC]
 export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken) => {
+
+
 
     const dexPair: Pair[] = []
     const buyDexType: DexType[] = []
@@ -198,7 +201,7 @@ const createContracts = () => {
             new Contract(
                 value.address,
                 value.type == 0 ? IUniswapV2Router02.abi : QuoterV3.abi,
-                alchemyProviderHTTP))
+                provider))
 
     }
 
@@ -259,89 +262,37 @@ const parsePromiseResult = (array: (BigNumber | BigNumber[])[], typeOrder: DexTy
 
 export const getBestPrice = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken) => {
 
-    // 0 hop - direct swap    |  1 hop                  |     2 hop
-    //--------------------------------------------------------------------------------------|
-    // A -> B = A/B           |  A -> B = A/C -> C/B.   |     A -> B = A/C -> C/D -> D/B    | 
-    // sell A for B           |  sell A for C           |     sell A for C                  | 1. blockchain call
-    //                        |  sell C for A           |     sell C for D                  | 2. blockchain call
-    //                        |                         |     sell D for B                  | 3. blockchain call
-    // -------------------------------------------------------------------------------------
 
 
-    // 4 router tokens
-    // - USDC
-    // - WETH
-    // - WBTC
-    // - WMATIC
 
-    var layer0_promises: Promise<BigNumber | BigNumber[]>[] = []
-    var layer0_dex_type_order: DexType[] = []
-
-    var hop0_promises: Promise<BigNumber | BigNumber[]>[] = []
-    var hop0_dex_type_order: DexType[] = []
-    var hop0_dex_name_order: string[] = []
+    var promises: Promise<BigNumber | BigNumber[]>[] = []
+    var dex_type_order: DexType[] = []
+    var dex_name_order: string[] = []
 
     Object.entries(dex_dict).forEach(([key, value]) => {
 
-        hop0_promises.push(getPrice(tokenAmount, tokenIn, tokenOut, key))
-        hop0_dex_type_order.push(value.type)
-        hop0_dex_name_order.push(key)
+        promises.push(getPrice(tokenAmount, tokenIn, tokenOut, key))
+        dex_type_order.push(value.type)
+        dex_name_order.push(key)
     })
 
-    var hop1_promises: Promise<BigNumber | BigNumber[]>[] = []
-    var hop1_dex_type_order: DexType[] = []
-    var hop1_dex_name_order: string[] = []
-
-    if (tokenIn.symbol !== Coin.WETH.symbol && tokenOut.symbol !== Coin.WETH.symbol) {
-        Object.entries(dex_dict).forEach(([key, value]) => {
-            hop1_promises.push(getPrice(tokenAmount, tokenIn, Coin.WETH, key))
-            hop1_dex_type_order.push(value.type)
-            hop1_dex_name_order.push(key)
-        })
-    }
-
-    if (tokenIn.symbol !== Coin.USDC.symbol && tokenOut.symbol !== Coin.USDC.symbol) {
-        Object.entries(dex_dict).forEach(([key, value]) => {
-            hop1_promises.push(getPrice(tokenAmount, tokenIn, Coin.USDC, key))
-            hop1_dex_type_order.push(value.type)
-            hop1_dex_name_order.push(key)
-        })
-    }
-
-    if (tokenIn.symbol !== Coin.WBTC.symbol && tokenOut.symbol !== Coin.WBTC.symbol) {
-        Object.entries(dex_dict).forEach(([key, value]) => {
-            hop1_promises.push(getPrice(tokenAmount, tokenIn, Coin.WBTC, key))
-            hop1_dex_type_order.push(value.type)
-            hop1_dex_name_order.push(key)
-        })
-    }
-
-    if (tokenIn.symbol !== Coin.WMATIC.symbol && tokenOut.symbol !== Coin.WMATIC.symbol) {
-        Object.entries(dex_dict).forEach(([key, value]) => {
-            hop1_promises.push(getPrice(tokenAmount, tokenIn, Coin.WMATIC, key))
-            hop1_dex_type_order.push(value.type)
-            hop1_dex_name_order.push(key)
-        })
-    }
-
-    layer0_promises = hop0_promises.concat(hop1_promises)
-    layer0_dex_type_order = hop0_dex_type_order.concat(hop1_dex_type_order)
     
 
     var start = Date.now()
-    var layer0_responses = await Promise.all(layer0_promises)
+    var layer0_responses = await Promise.all(promises)
     var duration = Date.now() - start
     
     console.log(duration)
     console.log(layer0_responses)
-    var parsed = parsePromiseResult(layer0_responses, layer0_dex_type_order)
+    var parsed = parsePromiseResult(layer0_responses, dex_type_order)
 
     var table: DisplayTable[] = []
 
-    var max: MaxRoute = {
-        tokenIn: "",
-        tokenOut: "",
+    var max: RouteNode = {
+        tokenIn: tokenIn,
+        tokenOut: tokenOut,
         amountBought: getBigNumber(0, tokenOut.decimals),
+        dex: ""
     }
 
     parsed.forEach((price: BigNumber, index) => {
@@ -350,14 +301,16 @@ export const getBestPrice = async (tokenAmount: BigNumber, tokenIn: IToken, toke
                 amount: utils.formatUnits(tokenAmount, tokenIn.decimals).toString(),
                 in: tokenIn.symbol,
                 out: tokenOut.symbol,
-                dex: hop0_dex_name_order[index],
+                dex: dex_name_order[index],
                 price: utils.formatUnits(price, tokenOut.decimals)
             })
         if (price.gt(max.amountBought)) {
             max = {
-                tokenIn: tokenIn.address,
-                tokenOut: tokenOut.address,
+                tokenIn: tokenIn,
+                tokenOut: tokenOut,
                 amountBought: price,
+                dex: dex_name_order[index]
+
             }
         }
     })

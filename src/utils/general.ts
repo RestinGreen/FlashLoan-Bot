@@ -9,15 +9,9 @@ export const jsonRPCProvider = new providers.JsonRpcProvider(process.env.ALCHEMY
 export const ganacheFork = new providers.JsonRpcProvider(process.env.GANACHE_FORK)
 export const localETHLight = new providers.JsonRpcProvider('http://127.0.0.1:8545')
 
-export const getBigNumber = (amount: number | BigNumber, decimals = 18) => {
+export const getBigNumber = (amount: number | BigNumber, decimals: number = 18) => {
     return utils.parseUnits(amount.toString(), decimals);
 };
 
-export const formatReadable = (bn: BigNumber, decimals: number) => {
-    
-    var string = bn.toString()
-    var length = string.length
-    return string.slice(0, length-decimals) + '.' + string.slice(length-decimals)
+export const ZERO = BigNumber.from(0)
 
-    
-}

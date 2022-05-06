@@ -1,6 +1,6 @@
 import { BigNumber, Contract } from "ethers";
-import { IToken } from "../address/coin";
-import { getBigNumber } from "../utils/general";
+import { IToken } from "../../address/coin";
+import { getBigNumber } from "../../utils/general";
 
 type FeeMap = {
     [pair: string]: {
