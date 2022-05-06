@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 import { Coin, IToken } from "./address/coin";
-import { flashAmountBN, tokenIn, tokenOut } from "./config";
+import { flashAmountBN, tokenIn, tokenIns, tokenOut, tokenOuts } from "./config";
 import { Graph, Node } from "./types/graph";
 import { BigNumber, ethers } from "ethers"
 import { getBestPriceAsync } from "./price/async_graph_price_index";
@@ -125,6 +125,16 @@ async function promiseDepth(head: Node, amountIn: BigNumber): Promise<Route> {
 function main() {
 
     // gets the best profit with direct swaps
+
+    tokenIns.forEach(async tin => {
+        tokenOuts.forEach(async tout => {
+            if (tin.symbol != tout.symbol) {
+                while(1) {
+                    await getPriceAllDex(flashAmountBN, tin, tout)
+                }
+            }
+        })
+    })
     // getPriceAllDex(flashAmountBN, tokenIn, tokenOut)
 
 
@@ -133,13 +143,13 @@ function main() {
 
     //async graph type best rout max amount out search
 
-    var graphIn = buildGraph(tokenIn, tokenOut)
-    var graphOut = buildGraph(tokenOut, tokenIn)
-    promiseDepth(graphIn.nodes.get(0)!, flashAmountBN).then(max => {
-        console.log(`------------------------------------------------------------------------------`)
+    // var graphIn = buildGraph(tokenIn, tokenOut)
+    // var graphOut = buildGraph(tokenOut, tokenIn)
+    // promiseDepth(graphIn.nodes.get(0)!, flashAmountBN).then(max => {
+    //     console.log(`------------------------------------------------------------------------------`)
 
-        promiseDepth(graphOut.nodes.get(0)!, max.finalAmount)
-    })
+    //     promiseDepth(graphOut.nodes.get(0)!, max.finalAmount)
+    // })
 
 
 }

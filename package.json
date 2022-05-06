@@ -6,7 +6,7 @@
   "scripts": {
     "start": "cls && node ./dist/src/index.js",
     "watch": "tsc -w",
-    "test": "cls && node ./dist/test/test.js"
+    "test": "cls && node ./dist/test_ts/test.js"
   },
   "dependencies": {
     "@uniswap/v2-periphery": "^1.1.0-beta.0",

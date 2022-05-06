@@ -75,8 +75,7 @@ const getPrice1 = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: ITok
 
 }
 
-const hopTokens: IToken[] = [Coin.USDC, Coin.WMATIC, Coin.WETH, Coin.WBTC]
-export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken) => {
+export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, log: boolean = false) => {
 
 
 
@@ -105,7 +104,7 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
 
     var start = Date.now()
     amountOutPrice = await Promise.all(amountOutPromise)
-    console.log(`time: ${Date.now() - start}`)
+    console.log(`block number: ${Date.now()} / time: ${Date.now() - start}`)
 
     var numberOfDex = Object.keys(dex_dict).length
 
@@ -124,10 +123,10 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
 
     start = Date.now()
     amountSellPrice = await Promise.all(amountSellPromise)
-    console.log(`time: ${Date.now() - start}`)
+    console.log(`block number: ${Date.now()} / time: ${Date.now() - start}`)
 
     var prev: BigNumber = tokenAmount.mul(-1)
-    var temp: DisplayTable1;
+    var temp: DisplayTable1
     amountOutPrice.forEach((price: BigNumber | [BigNumber, BigNumber], index) => {
         // @ts-ignore
         let bought: BigNumber = buyDexType[index] == 0 ? price[1] : price
@@ -149,22 +148,28 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
             }
         }
 
-        table.push({
-            buy_from: dexPair[index].buy,
-            sell_at: dexPair[index].sell,
-            amount: utils.formatUnits(tokenAmount, tokenIn.decimals),
-            tokenIn: tokenIn.symbol,
-            tokenOut: tokenOut.symbol,
-            bought: utils.formatUnits(bought, tokenOut.decimals),
-            sell_for: utils.formatUnits(sell_for, tokenIn.decimals),
-            profit: utils.formatUnits(profit, tokenIn.decimals)
-        })
+        if (log)
+            table.push({
+                buy_from: dexPair[index].buy,
+                sell_at: dexPair[index].sell,
+                amount: utils.formatUnits(tokenAmount, tokenIn.decimals),
+                tokenIn: tokenIn.symbol,
+                tokenOut: tokenOut.symbol,
+                bought: utils.formatUnits(bought, tokenOut.decimals),
+                sell_for: utils.formatUnits(sell_for, tokenIn.decimals),
+                profit: utils.formatUnits(profit, tokenIn.decimals)
+            })
 
     })
 
-
-    console.table(table)
-    console.table(temp!)
+    if (log) {
+        console.table(table)
+        console.table(temp!)
+    }
+    if (prev.gt(0)) {
+        console.table(temp!)
+        console.log(`block number: ${provider.getBlockNumber()}`)
+    }
 
 
 
@@ -276,12 +281,12 @@ export const getBestPrice = async (tokenAmount: BigNumber, tokenIn: IToken, toke
         dex_name_order.push(key)
     })
 
-    
+
 
     var start = Date.now()
     var layer0_responses = await Promise.all(promises)
     var duration = Date.now() - start
-    
+
     console.log(duration)
     console.log(layer0_responses)
     var parsed = parsePromiseResult(layer0_responses, dex_type_order)

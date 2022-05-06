@@ -24,7 +24,7 @@ export const dex_dict: Dex = {
     POLYCAT:    {address: "0x94930a328162957FF1dd48900aF67B5439336cBD", type: DexType.UNISWAP_V2},
     WAULTSWAP:  {address: "0x3a1D87f206D12415f5b0A33E786967680AAb4f6d", type: DexType.UNISWAP_V2},
     UNISWAP_V3: {address: "0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6", type: DexType.UNISWAP_V3},
-    DODO:       {address: "",                                           type: DexType.DODO}
+    // DODO:       {address: "",                                           type: DexType.DODO}
     //1inch
     //stb kell meg keresni
   };

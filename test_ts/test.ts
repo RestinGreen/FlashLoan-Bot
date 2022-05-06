@@ -1,7 +1,7 @@
 import { ethers } from "ethers"
-import { Coin } from "../src/address/coin"
-import { getPriceOnDodoV2, ReturnType } from "../src/price/dodo/dodo"
-import { getBigNumber } from "../src/utils/general"
+import { Coin } from "./address/coin"
+import { getPriceOnDodoV2, ReturnType } from "./price/dodo/dodo"
+import { getBigNumber } from "./utils/general"
 
 async function test_test() {
 
