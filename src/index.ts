@@ -6,7 +6,7 @@ import { Graph, Node } from "./types/graph";
 import { BigNumber, ethers } from "ethers"
 import { getBestPriceAsync } from "./price/async_graph_price_index";
 import { Route, RouteNode } from "./types/maxRoute";
-import { getPriceAllDex } from "./price/direct_price_index";
+import { getPriceAllDex, MaxRoute } from "./price/direct_price_index";
 
 
 const routerTokens: IToken[] = [Coin.USDC, Coin.WETH, Coin.WMATIC, Coin.WBTC]
@@ -124,18 +124,29 @@ async function promiseDepth(head: Node, amountIn: BigNumber): Promise<Route> {
 
 function main() {
 
+    var flashloaning: Map<MaxRoute, boolean> = new Map<MaxRoute, boolean>()
     // gets the best profit with direct swaps
-
+    
     tokenIns.forEach(async tin => {
         tokenOuts.forEach(async tout => {
             if (tin.symbol != tout.symbol) {
-                while(1) {
-                    await getPriceAllDex(flashAmountBN, tin, tout)
+                while (1) {
+                    var [profitable, route] = await getPriceAllDex(flashAmountBN, tin, tout)
+
+                    if (profitable) {
+                        if (flashloaning.get(route) == undefined) {
+                            flashloaning.set(route, true)
+                            console.log(`initating flash loan`)
+                            flashloaning.set(route, false)
+                        }
+                    }
                 }
             }
         })
     })
-    // getPriceAllDex(flashAmountBN, tokenIn, tokenOut)
+    // getPriceAllDex(flashAmountBN, tokenIn, tokenOut).catch(error => {
+    //     console.log(error)
+    // })
 
 
     // gets the max price

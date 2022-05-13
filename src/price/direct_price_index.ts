@@ -2,11 +2,10 @@ import { BigNumber, Contract, utils } from "ethers"
 import { Dex, dex_dict, DexData, DexType } from "../address/dex_data"
 import IUniswapV2Router02 from "@uniswap/v2-periphery/build/IUniswapV2Router02.json"
 import QuoterV3 from "@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json"
-import { getBigNumber } from "../utils/general"
+import { getBigNumber, ZERO } from "../utils/general"
 import { getPriceOnUniV2 } from "./uniswapV2/uniswapV2type"
 import { getPriceOnUniV3 } from "./uniswapV3/uniswapv3type"
 import { Coin, Erc20Token, IToken } from "../address/coin"
-import { id, parseUnits } from "ethers/lib/utils"
 import { RouteNode } from "../types/maxRoute"
 import { provider } from "../config"
 
@@ -51,8 +50,8 @@ const contracts1: Map<string, Contract> = createContracts1()
 
 
 
-const getPrice1 = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, dex: string)
-    : Promise<BigNumber | [BigNumber, BigNumber]> => {
+const getPrice1 = (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, dex: string)
+    : Promise<BigNumber | [BigNumber, BigNumber] | void> => {
 
     switch (dex_dict[dex].type) {
         case DexType.UNISWAP_V2:
@@ -61,21 +60,35 @@ const getPrice1 = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: ITok
                 tokenIn.address,
                 tokenOut.address,
                 tokenAmount,
-                contracts1.get(dex)!)
-
+                contracts1.get(dex)!).catch(error => {
+                    console.error(`get price on UNISWAPV2 error`)
+                })
         case DexType.UNISWAP_V3:
         default:
-
             return getPriceOnUniV3(
                 tokenIn,
                 tokenOut,
                 tokenAmount,
-                contracts1.get(dex)!)
+                contracts1.get(dex)!).catch(error => {
+                    console.error(`get price on UNISWAPV2 error`)
+                })
     }
 
 }
 
-export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, log: boolean = false) => {
+export type MaxRoute = {
+    buy_from: string,
+    sell_at: string,
+    amount: BigNumber,
+    tokenIn: string,
+    tokenOut: string,
+    bought: BigNumber,
+    sell_for: BigNumber,
+    profit: BigNumber
+}
+
+export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, log: boolean = false)
+    : Promise<[boolean, MaxRoute]> => {
 
 
 
@@ -83,12 +96,12 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
     const buyDexType: DexType[] = []
     const dexContract = []
     //buying the token with loan money
-    var amountOutPromise: Promise<BigNumber | [BigNumber, BigNumber]>[] = []
+    var amountOutPromise: Promise<BigNumber | [BigNumber, BigNumber] | void>[] = []
     var amountOutPrice = []
     var formatedAmountOutPrice: BigNumber[] = []
     //selling the bought token for profit
-    var amountSellPromise: Promise<BigNumber | [BigNumber, BigNumber]>[] = []
-    var amountSellPrice: (BigNumber | [BigNumber, BigNumber])[] = []
+    var amountSellPromise: Promise<BigNumber | [BigNumber, BigNumber] | void>[] = []
+    var amountSellPrice: (BigNumber | [BigNumber, BigNumber] | void)[] = []
 
     Object.keys(dex_dict).forEach(buy => {
         Object.keys(dex_dict).forEach(sell => {
@@ -104,12 +117,11 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
 
     var start = Date.now()
     amountOutPrice = await Promise.all(amountOutPromise)
-    console.log(`block number: ${Date.now()} / time: ${Date.now() - start}`)
+    // console.log(`time: ${Date.now() - start} - ${tokenIn.symbol} / ${tokenOut.symbol} buy`)
 
     var numberOfDex = Object.keys(dex_dict).length
 
-    var table: DisplayTable1[] = []
-    amountOutPrice.forEach((price: BigNumber | [BigNumber, BigNumber], index) => {
+    amountOutPrice.forEach((price: BigNumber | [BigNumber, BigNumber] | void, index) => {
         //@ts-ignore
         formatedAmountOutPrice.push(buyDexType[index] == 0 ? price[1] : price)
     })
@@ -122,55 +134,62 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
     }
 
     start = Date.now()
-    amountSellPrice = await Promise.all(amountSellPromise)
-    console.log(`block number: ${Date.now()} / time: ${Date.now() - start}`)
+    amountSellPrice = await Promise.all(amountSellPromise,)
+    // console.log(`time: ${Date.now() - start} - ${tokenIn.symbol} / ${tokenOut.symbol} sell`)
 
-    var prev: BigNumber = tokenAmount.mul(-1)
-    var temp: DisplayTable1
-    amountOutPrice.forEach((price: BigNumber | [BigNumber, BigNumber], index) => {
+    var max: MaxRoute = {
+        buy_from: "",
+        sell_at: "",
+        amount: ZERO,
+        tokenIn: "",
+        tokenOut: "",
+        bought: ZERO,
+        sell_for: ZERO,
+        profit: tokenAmount.mul(-1)
+    }
+
+    amountOutPrice.forEach((price: BigNumber | [BigNumber, BigNumber] | void, index) => {
         // @ts-ignore
         let bought: BigNumber = buyDexType[index] == 0 ? price[1] : price
         // @ts-ignore
         let sell_for: BigNumber = sellDexType[index] == 0 ? amountSellPrice[index][1] : amountSellPrice[index]
 
         let profit: BigNumber = sell_for.sub(tokenAmount)
-        if (profit.gt(prev)) {
-            prev = profit
-            temp = {
+        if (profit.gt(max.profit)) {
+            max = {
                 buy_from: dexPair[index].buy,
                 sell_at: dexPair[index].sell,
-                amount: utils.formatUnits(tokenAmount, tokenIn.decimals),
+                amount: tokenAmount,
                 tokenIn: tokenIn.symbol,
                 tokenOut: tokenOut.symbol,
-                bought: utils.formatUnits(bought, tokenOut.decimals),
-                sell_for: utils.formatUnits(sell_for, tokenIn.decimals),
-                profit: utils.formatUnits(profit, tokenIn.decimals)
+                bought: bought,
+                sell_for: sell_for,
+                profit: profit
             }
         }
 
-        if (log)
-            table.push({
-                buy_from: dexPair[index].buy,
-                sell_at: dexPair[index].sell,
-                amount: utils.formatUnits(tokenAmount, tokenIn.decimals),
-                tokenIn: tokenIn.symbol,
-                tokenOut: tokenOut.symbol,
-                bought: utils.formatUnits(bought, tokenOut.decimals),
-                sell_for: utils.formatUnits(sell_for, tokenIn.decimals),
-                profit: utils.formatUnits(profit, tokenIn.decimals)
-            })
 
     })
 
     if (log) {
-        console.table(table)
-        console.table(temp!)
+        console.table(max)
     }
-    if (prev.gt(0)) {
-        console.table(temp!)
-        console.log(`block number: ${provider.getBlockNumber()}`)
+    if (max.profit.gt(0)) {
+        console.log(`block number: ${await provider.getBlockNumber().catch(error => console.error(`can't get block number`))}`)
+        console.table({
+            buy_from: max.buy_from,
+            sell_at: max.sell_at,
+            amount: utils.formatUnits(max.amount, tokenIn.decimals),
+            tokenIn: tokenIn.symbol,
+            tokenOut: tokenOut.symbol,
+            bought: utils.formatUnits(max.bought, tokenOut.decimals),
+            sell_for: utils.formatUnits(max.sell_for, tokenIn.decimals),
+            profit: utils.formatUnits(max.profit, tokenIn.decimals)
+        })
+        return [true, max]
     }
 
+    return [false, max]
 
 
 

@@ -9,7 +9,7 @@ type FeeMap = {
   };
   
 
-export const getPriceOnUniV3 = async (
+export const getPriceOnUniV3 = (
     tokenIn: IToken,
     tokenOut: IToken,
     amountIn: BigNumber,

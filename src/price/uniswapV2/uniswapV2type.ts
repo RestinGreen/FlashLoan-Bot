@@ -1,6 +1,6 @@
 import { BigNumber, Contract } from "ethers";
 
-export const getPriceOnUniV2 = async (
+export const getPriceOnUniV2 = (
     tokenIn: string,
     tokenOut: string,
     amountIn: BigNumber,
