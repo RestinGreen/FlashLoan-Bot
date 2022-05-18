@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 enum DexType {
-    UNISWAPV2,
-    UNISWAPV3,
+    UNISWAP_V2,
+    UNISWAP_V3,
     DODO
 }
 
@@ -12,7 +12,8 @@ struct FlashParams {
     address sellAddress;
     DexType buyDex;
     DexType sellDex;
-    uint256 amount;
+    uint256 buyAmount;
+    address flashLoanPool;
 }
 
 struct FlashCallbackData {
@@ -21,5 +22,6 @@ struct FlashCallbackData {
     address sellAddress;
     DexType buyDex;
     DexType sellDex;
-    uint256 amount;
+    uint256 buyAmount;
+    address flashLoanPool;
 }

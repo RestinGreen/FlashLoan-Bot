@@ -1,54 +1,54 @@
-import { BigNumber, ethers, providers } from "ethers"
 import { Coin } from "../src/address/coin"
-import { getPriceOnDodoV2, ReturnType } from "../src/price/dodo/dodo"
-import { alchemyProviderHTTP, getBigNumber, localFork } from "../src/utils/general"
-import { provider } from "../src/config"
+import { getPriceAllDex } from "../src/price/direct_price_index"
+import { getBigNumber } from "../src/utils/general"
+import { dodo_flashloan_pools } from "../src/address/flashloan_pool"
+import { dodoexample, provider } from "../src/config";
+import { ethers } from "ethers";
+import { FlashParams } from "../src/types/flash"
+import { dex_dict } from "../src/address/dex_data"
+import { flashAmountBN, flashLoan, signer } from "../src/config"
+require('dotenv').config()
+
 const log = require("why-is-node-running")
-require('dotenv').config();
-// async function dodotest() {
-
-//     console.log('this is a test')
-
-//     var a = Coin.USDC
-//     var b = Coin.WMATIC
-//     var be = getBigNumber(100, a.decimals)
-
-//     var [type, promise] = getPriceOnDodoV2(a, b, be, '0x79bFB7407c4632C66dC9001b35f576f74a3069B6')
-
-//     var x = await promise
-//     console.log(x, type)
-//     switch (type) {
-//         case ReturnType.BASE_SOLD:
-//             console.log(ethers.utils.formatUnits(x.receiveQuoteAmount, b.decimals))
-//             break
-//         case ReturnType.QUOTE_SOLD:
-//             console.log(ethers.utils.formatUnits(x.receiveBaseAmount, b.decimals))
-//             break
-
-//     }
-//     process.exit(0)
-// }
-
-async function f1(a: number, b: number) {
-
-    let x = Math.floor(Math.random()*3)*100
-    await new Promise(f => setTimeout(f, x));
-    console.log(a, b)
-}
 
 
-function asynctest() {
+async function asynctest() {
     console.log(`async test`)
 
-    var be = [1, 2, 3, 4]
-    var ki = [5, 6, 7, 8]
+    var amount = 3000
+    var coinA = Coin.USDC
+    var coinB = Coin.WMATIC
+    var amountBN = getBigNumber(3000, Coin.USDC.decimals)
 
-    be.forEach(async b => {
-        ki.forEach(async k => {
-            while(1)
-                await f1(b,k)
+    var [profitable, route] = await getPriceAllDex(amountBN, coinA, coinB)
+
+    if (profitable) {
+        console.log(`initating flash loan`)
+        
+        const gasPrice = await provider.getGasPrice();
+        const extraGas = ethers.utils.parseUnits("100", "gwei");
+
+        var flashpool: string = dodo_flashloan_pools[coinA.symbol]
+
+        var params: FlashParams = {
+            buyAddress: coinA.address,
+            sellAddress: coinB.address,
+            buyDex: dex_dict[route.buy_from].type,
+            sellDex: dex_dict[route.sell_at].type,
+            buyAmount: amount,
+            flashLoanPool: flashpool
+        }
+        
+        console.log(ethers.utils.formatUnits(gasPrice, 'gwei'))
+        console.log('buy address',params.buyAddress)
+        console.log('sell address',params.sellAddress)
+
+        await flashLoan.connect(signer).dodoFlashLoan(params, {
+            gasLimit: 15000000,
+            gasPrice: gasPrice.add(extraGas)
         })
-    })
+        // await dodoexample.connect(signer).dodoFlashLoan(flashpool, 3000, coinA.address)
+    }
 
 }
 

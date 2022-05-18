@@ -12,12 +12,18 @@
   "scripts": {
     "start": "cls && node ./dist/src/index.js",
     "watch": "tsc -w",
-    "test": "cls && node ./dist/test_ts/test.js"
+    "test": "cls && node ./dist/test_ts/test.js",
+    "clean": "npx hardhat clean",
+    "compile": "npx hardhat compile",
+    "dep": "npx hardhat run --network local ./scripts/deploy.js",
+    "deploy": "npm run clean && npm run compile && npm run dep"
   },
   "dependencies": {
+    "@openzeppelin/contracts": "^4.6.0",
     "@uniswap/v2-periphery": "^1.1.0-beta.0",
     "@uniswap/v3-periphery": "^1.4.0",
     "dotenv": "^16.0.0",
+    "glob": "^7.2.0",
     "rxjs": "^7.5.5"
   }
 }

@@ -3,7 +3,7 @@ import { Contract } from "ethers";
 export enum DexType {
   UNISWAP_V2,
   UNISWAP_V3,
-  DODO,
+  DODO
 }
 
 export type DexData = {

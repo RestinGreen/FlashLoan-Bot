@@ -1,39 +1,43 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import { FlashParams, FlashCallbackData } from "./types/Types.sol";
-import { IDODO } from "./interfaces/IDODO.sol";
+import {FlashParams, FlashCallbackData} from "./types/Types.sol";
+import {IDODO} from "./interfaces/IDODO.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+import "hardhat/console.sol";
 
 contract Flashloan {
-    
-
+    constructor() {}
 
     function dodoFlashLoan(FlashParams memory params) external {
-
-         bytes memory data = abi.encode(
+        
+        bytes memory data2 = abi.encode(params.flashLoanPool, params.buyAddress, params.buyAmount);
+        
+        bytes memory data = abi.encode(
             FlashCallbackData({
                 me: msg.sender,
-                flashLoanPool: params.flashLoanPool,
-                loanAmount: params.loanAmount,
-                firstRoutes: params.firstRoutes,
-                secondRoutes: params.secondRoutes
+                buyAddress: params.buyAddress,
+                sellAddress: params.sellAddress,
+                buyDex: params.buyDex,
+                sellDex: params.sellDex,
+                buyAmount: params.buyAmount,
+                flashLoanPool: params.flashLoanPool
             })
         );
-        address loanToken = "0x5333Eb1E32522F1893B7C9feA3c263807A02d561"; //weth_usdc dodov2 pool
-        IDODO(params.flashLoanPool).flashLoan(
-            IDODO(params.flashLoanPool)._BASE_TOKEN_() == loanToken
-                ? params.loanAmount
-                : 0,
-            IDODO(params.flashLoanPool)._BASE_TOKEN_() == loanToken
-                ? 0
-                : params.loanAmount,
-            address(this),
-            data
-        );
+        address flashLoanPool = params.buyAddress;
+        console.log("before call", IDODO(params.flashLoanPool)._QUOTE_TOKEN_());
 
+        address flashLoanBase = IDODO(flashLoanPool)._BASE_TOKEN_();
+        if (flashLoanBase == params.buyAddress) {
+            IDODO(flashLoanPool).flashLoan(params.buyAmount, 0, address(this),data2);
+        } else {
+            IDODO(flashLoanPool).flashLoan(0, params.buyAmount, address(this), data2);
+        }
+        console.log("after call");
     }
 
-
+    //Note: CallBack function executed by DODOV2(DVM) flashLoan pool
     function DVMFlashLoanCall(
         address sender,
         uint256 baseAmount,
@@ -65,10 +69,21 @@ contract Flashloan {
 
     function _flashLoanCallBack(
         address sender,
-        uint256 baseAmount,
-        uint256 quoteAmount,
+        uint256,
+        uint256,
         bytes calldata data
     ) internal {
+        (address flashLoanPool, address loanToken, uint256 loanAmount) = abi
+            .decode(data, (address, address, uint256));
 
+        require(
+            sender == address(this) && msg.sender == flashLoanPool,
+            "HANDLE_FLASH_NENIED"
+        );
+
+        //Note: Realize your own logic using the token from flashLoan pool.
+        console.log(IERC20(loanToken).balanceOf((address(this))));
+        //Return funds
+        IERC20(loanToken).transfer(flashLoanPool, loanAmount);
     }
 }

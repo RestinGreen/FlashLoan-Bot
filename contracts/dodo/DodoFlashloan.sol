@@ -4,7 +4,8 @@
 */
 pragma solidity ^0.8.0;
 
-import {IERC20} from "./intf/IERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "hardhat/console.sol";
 
 interface IDODO {
     function flashLoan(
@@ -55,7 +56,7 @@ contract DODOFlashloan {
         require(sender == address(this) && msg.sender == flashLoanPool, "HANDLE_FLASH_NENIED");
 
         //Note: Realize your own logic using the token from flashLoan pool.
-
+        console.log(IERC20(loanToken).balanceOf((address(this))));
         //Return funds
         IERC20(loanToken).transfer(flashLoanPool, loanAmount);
     }
