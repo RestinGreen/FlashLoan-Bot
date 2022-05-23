@@ -54,7 +54,7 @@ contract DODOFlashloan {
         (address flashLoanPool, address loanToken, uint256 loanAmount) = abi.decode(data, (address, address, uint256));
         
         require(sender == address(this) && msg.sender == flashLoanPool, "HANDLE_FLASH_NENIED");
-
+        
         //Note: Realize your own logic using the token from flashLoan pool.
         console.log(IERC20(loanToken).balanceOf((address(this))));
         //Return funds

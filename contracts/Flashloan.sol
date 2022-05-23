@@ -12,8 +12,6 @@ contract Flashloan {
 
     function dodoFlashLoan(FlashParams memory params) external {
         
-        bytes memory data2 = abi.encode(params.flashLoanPool, params.buyAddress, params.buyAmount);
-        
         bytes memory data = abi.encode(
             FlashCallbackData({
                 me: msg.sender,
@@ -25,14 +23,16 @@ contract Flashloan {
                 flashLoanPool: params.flashLoanPool
             })
         );
-        address flashLoanPool = params.buyAddress;
+        address flashLoanPool = params.flashLoanPool;
         console.log("before call", IDODO(params.flashLoanPool)._QUOTE_TOKEN_());
 
         address flashLoanBase = IDODO(flashLoanPool)._BASE_TOKEN_();
         if (flashLoanBase == params.buyAddress) {
-            IDODO(flashLoanPool).flashLoan(params.buyAmount, 0, address(this),data2);
+            console.log('elso if');
+            IDODO(flashLoanPool).flashLoan(params.buyAmount, 0, address(this),data);
         } else {
-            IDODO(flashLoanPool).flashLoan(0, params.buyAmount, address(this), data2);
+            console.log('masodik if');
+            IDODO(flashLoanPool).flashLoan(0, params.buyAmount, address(this), data);
         }
         console.log("after call");
     }
@@ -67,23 +67,17 @@ contract Flashloan {
         _flashLoanCallBack(sender, baseAmount, quoteAmount, data);
     }
 
-    function _flashLoanCallBack(
-        address sender,
-        uint256,
-        uint256,
-        bytes calldata data
-    ) internal {
-        (address flashLoanPool, address loanToken, uint256 loanAmount) = abi
-            .decode(data, (address, address, uint256));
+    function _flashLoanCallBack(address sender, uint256, uint256, bytes calldata data) internal {
+        FlashCallbackData memory params = abi.decode(data, (FlashCallbackData));
 
-        require(
-            sender == address(this) && msg.sender == flashLoanPool,
-            "HANDLE_FLASH_NENIED"
-        );
+        require(sender == address(this) && msg.sender == params.flashLoanPool, "HANDLE_FLASH_NENIED");
 
         //Note: Realize your own logic using the token from flashLoan pool.
-        console.log(IERC20(loanToken).balanceOf((address(this))));
+        console.log(IERC20(params.buyAddress).balanceOf((address(this))));
+
+
+
         //Return funds
-        IERC20(loanToken).transfer(flashLoanPool, loanAmount);
+        IERC20(params.buyAddress).transfer(params.flashLoanPool, params.buyAmount);
     }
 }
