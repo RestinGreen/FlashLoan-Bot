@@ -1,12 +1,15 @@
 require('dotenv').config();
 
 import { Coin, IToken } from "./address/coin";
-import { flashAmountBN, tokenIn, tokenIns, tokenOut, tokenOuts } from "./config";
+import { flashAmount, flashAmountBN, flashLoan, provider, signer, tokenIn, tokenIns, tokenOut, tokenOuts } from "./config";
 import { Graph, Node } from "./types/graph";
 import { BigNumber, ethers } from "ethers"
 import { getBestPriceAsync } from "./price/async_graph_price_index";
 import { Route, RouteNode } from "./types/maxRoute";
 import { getPriceAllDex, MaxRoute } from "./price/direct_price_index";
+import { dodo_flashloan_pools } from "./address/flashloan_pool";
+import { FlashParams } from "./types/flash";
+import { dex_dict } from "./address/dex_data";
 
 
 const routerTokens: IToken[] = [Coin.USDC, Coin.WETH, Coin.WMATIC, Coin.WBTC]
@@ -124,20 +127,51 @@ async function promiseDepth(head: Node, amountIn: BigNumber): Promise<Route> {
 
 function main() {
 
-    var flashloaning: Map<MaxRoute, boolean> = new Map<MaxRoute, boolean>()
+
+    var flashloaning: Map<string, boolean> = new Map<string, boolean>()
     // gets the best profit with direct swaps
-    
+
     tokenIns.forEach(async tin => {
+        console.log('asd')
         tokenOuts.forEach(async tout => {
+            console.log('asd2')
             if (tin.symbol != tout.symbol) {
                 while (1) {
+                    let start = Date.now()
                     var [profitable, route] = await getPriceAllDex(flashAmountBN, tin, tout)
-
-                    if (profitable) {
-                        if (flashloaning.get(route) == undefined) {
-                            flashloaning.set(route, true)
+                    let end = Date.now()
+                    console.log('get price time: ', end - start)
+                    let id = route.buy_from.concat(route.sell_at).concat(tokenIn.symbol).concat(tokenOut.symbol)
+                    if (profitable && route.profit.gt(1)) {
+                        if (!flashloaning.get(id)) {
+                            flashloaning.set(id, true)
+                            console.log('get price time: ', end - start)
                             console.log(`initating flash loan`)
-                            flashloaning.set(route, false)
+
+                            const gasPrice = await provider.getGasPrice();
+                            const extraGas = ethers.utils.parseUnits("100", "gwei");
+
+                            var flashpool: string = dodo_flashloan_pools[tin.symbol]
+
+                            var params: FlashParams = {
+                                tokenIn: tin.address,
+                                tokenOut: tout.address,
+                                buyDexType: dex_dict[route.buy_from].type,
+                                sellDexType: dex_dict[route.sell_at].type,
+                                buyDexAddress: dex_dict[route.buy_from].address,
+                                sellDexAddress: dex_dict[route.sell_at].address,
+                                buyAmount: flashAmount,
+                                flashLoanPool: flashpool
+                            }
+                            
+                            start = Date.now()
+                            await flashLoan.connect(signer).dodoFlashLoan(params, {
+                                gasLimit: 15000000,
+                                gasPrice: gasPrice.add(extraGas),
+                            })
+                            console.log('flashloan time', Date.now() - start)
+
+                            flashloaning.set(id, false)
                         }
                     }
                 }
@@ -162,7 +196,7 @@ function main() {
     //     promiseDepth(graphOut.nodes.get(0)!, max.finalAmount)
     // })
 
-
+    console.log('asd3')
 }
 
 main()

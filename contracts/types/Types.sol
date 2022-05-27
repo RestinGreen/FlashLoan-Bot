@@ -8,20 +8,28 @@ enum DexType {
 }
 
 struct FlashParams {
-    address buyAddress;
-    address sellAddress;
-    DexType buyDex;
-    DexType sellDex;
+    address tokenIn;
+    address tokenOut;
+    DexType buyDexType;
+    DexType sellDexType;
+
+    address buyDexAddress;
+    address sellDexAddress;
+
     uint256 buyAmount;
     address flashLoanPool;
 }
 
 struct FlashCallbackData {
     address me;
-    address buyAddress;
-    address sellAddress;
-    DexType buyDex;
-    DexType sellDex;
+    address tokenIn;
+    address tokenOut;
+    DexType buyDexType;
+    DexType sellDexType;
+
+    address buyDexAddress;
+    address sellDexAddress;
+
     uint256 buyAmount;
     address flashLoanPool;
 }

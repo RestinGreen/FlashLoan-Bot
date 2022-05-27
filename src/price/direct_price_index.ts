@@ -61,7 +61,7 @@ const getPrice1 = (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, de
                 tokenOut.address,
                 tokenAmount,
                 contracts1.get(dex)!).catch(error => {
-                    console.error(`get price on UNISWAPV2 error`)
+                    console.error(`${error} get price on UNISWAPV2 error`)
                 })
         case DexType.UNISWAP_V3:
         default:
@@ -70,7 +70,7 @@ const getPrice1 = (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, de
                 tokenOut,
                 tokenAmount,
                 contracts1.get(dex)!).catch(error => {
-                    console.error(`get price on UNISWAPV2 error`)
+                    console.error(`${error} get price on UNISWAPV2 error`)
                 })
     }
 
@@ -117,7 +117,7 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
 
     var start = Date.now()
     amountOutPrice = await Promise.all(amountOutPromise)
-    console.log(`time: ${Date.now() - start} - ${tokenIn.symbol} / ${tokenOut.symbol} buy`)
+    // console.log(`time: ${Date.now() - start} - ${tokenIn.symbol} / ${tokenOut.symbol} buy`)
 
     var numberOfDex = Object.keys(dex_dict).length
 
@@ -135,7 +135,7 @@ export const getPriceAllDex = async (tokenAmount: BigNumber, tokenIn: IToken, to
 
     start = Date.now()
     amountSellPrice = await Promise.all(amountSellPromise,)
-    console.log(`time: ${Date.now() - start} - ${tokenIn.symbol} / ${tokenOut.symbol} sell`)
+    // console.log(`time: ${Date.now() - start} - ${tokenIn.symbol} / ${tokenOut.symbol} sell`)
 
     var max: MaxRoute = {
         buy_from: "",

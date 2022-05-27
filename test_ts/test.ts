@@ -15,39 +15,55 @@ const log = require("why-is-node-running")
 async function asynctest() {
     console.log(`async test`)
 
-    // var amount = 3000
-    // var coinA = Coin.USDC
-    // var coinB = Coin.WMATIC
-    // var amountBN = getBigNumber(3000, Coin.USDC.decimals)
+    var amount = 3000
+    var coinA = Coin.USDC
+    var coinB = Coin.WMATIC
+    var amountBN = getBigNumber(3000, Coin.USDC.decimals)
 
-    // var [profitable, route] = await getPriceAllDex(amountBN, coinA, coinB)
+    var [profitable, route] = await getPriceAllDex(amountBN, coinA, coinB)
 
-    // if (profitable) {
-    //     console.log(`initating flash loan`)
+    if (profitable) {
+        console.log(`initating flash loan`)
         
-    //     const gasPrice = await provider.getGasPrice();
-    //     const extraGas = ethers.utils.parseUnits("100", "gwei");
+        const gasPrice = await provider.getGasPrice();
+        const extraGas = ethers.utils.parseUnits("100", "gwei");
 
-    //     var flashpool: string = dodo_flashloan_pools[coinA.symbol]
+        var flashpool: string = dodo_flashloan_pools[coinA.symbol]
 
-    //     var params: FlashParams = {
-    //         buyAddress: coinA.address,
-    //         sellAddress: coinB.address,
-    //         buyDex: dex_dict[route.buy_from].type,
-    //         sellDex: dex_dict[route.sell_at].type,
-    //         buyAmount: amount,
-    //         flashLoanPool: flashpool
-    //     }
+        var params: FlashParams = {
+            tokenIn: coinA.address,
+            tokenOut: coinB.address,
+            buyDexType: dex_dict[route.buy_from].type,
+            sellDexType: dex_dict[route.sell_at].type,
+            buyDexAddress: dex_dict[route.buy_from].address,
+            sellDexAddress: dex_dict[route.sell_at].address,
+            buyAmount: amount,
+            flashLoanPool: flashpool
+        }
         
-    //     console.log(ethers.utils.formatUnits(gasPrice, 'gwei'))
-    //     console.log('buy address',params.buyAddress)
-    //     console.log('sell address',params.sellAddress)
+        console.log('gas price', ethers.utils.formatUnits(gasPrice, 'gwei'))
+        console.log('token in ',params.tokenIn)
+        console.log('token out',params.tokenOut)
 
-    //     await flashLoan.connect(signer).dodoFlashLoan(params)
+        const estimagedGas = await flashLoan.estimateGas.dodoFlashLoan(params,{
+            gasLimit: 15000000,
+            gasPrice: gasPrice.add(extraGas),
+        })
+
+        // 0.000000067 = 67 gwei
+        // 0.000000001 = 1  gwei
+        console.log(`estimated gas is: ${estimagedGas}`)
+
+        await flashLoan.connect(signer).dodoFlashLoan(params, {
+            gasLimit: 15000000,
+            gasPrice: gasPrice.add(extraGas),
+        })
         // await dodoexample.connect(signer).dodoFlashLoan(flashpool, 3000, coinA.address)
-    // }
-    var height = await provider.getBlockNumber()
-    console.log(height)
+    }
+    // var start = Date.now()
+    // var height = await provider.getBlockNumber()
+    // console.log(Date.now()-start)
+    // console.log(height)
 
 }
 

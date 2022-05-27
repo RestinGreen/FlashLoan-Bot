@@ -27,10 +27,10 @@ async function main() {
   
   ////////////////////////////////////////////////////////////
 
-  const D = await ethers.getContractFactory('DODOFlashloan')
-  const dodo = await D.deploy()
-  await dodo.deployed()
-  console.log("dodo deployed to:", dodo.address)
+  // const D = await ethers.getContractFactory('DODOFlashloan')
+  // const dodo = await D.deploy()
+  // await dodo.deployed()
+  // console.log("dodo deployed to:", dodo.address)
 
 }
 

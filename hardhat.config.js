@@ -1,4 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
+require("hardhat-gas-reporter");
+require("dotenv").config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -25,12 +27,23 @@ module.exports = {
     ],
   },
   networks: {
+    polygonMainnet: {
+      url: 'http://127.0.0.1:8545',
+      accounts: [process.env.WALLET_PRIVATE_KEY]
+    },
     local: {
-      url: 'http://127.0.0.1:8545'
+      url: 'http://127.0.0.1:9999'
     }
   },
   paths: {
     artifacts: "./artifacts",
     sources: "./contracts"
+  },
+  gasReporter: {
+    enabled: true,
+    token: 'MATIC',
+    currency: "USD",
+    // gasPrice: 50,
+    gasPriceApi: 'https://api.polygonscan.com/api?module=proxy&action=eth_gasPrice'
   },
 };
