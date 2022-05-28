@@ -20,11 +20,13 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  */
 module.exports = {
   solidity: {
-    compilers: [
-      {
-        version: "0.8.4"
+    version: "0.8.4",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200
       }
-    ],
+    }
   },
   networks: {
     polygonMainnet: {
@@ -32,7 +34,8 @@ module.exports = {
       accounts: [process.env.WALLET_PRIVATE_KEY]
     },
     local: {
-      url: 'http://127.0.0.1:9999'
+      url: 'http://127.0.0.1:9999',
+      // accounts: [process.env.WALLET_PRIVATE_KEY]
     }
   },
   paths: {
@@ -41,9 +44,9 @@ module.exports = {
   },
   gasReporter: {
     enabled: true,
-    token: 'MATIC',
+    // token: 'MATIC',
     currency: "USD",
-    // gasPrice: 50,
-    gasPriceApi: 'https://api.polygonscan.com/api?module=proxy&action=eth_gasPrice'
+    gasPrice: 500,
+    // gasPriceApi: 'https://api.polygonscan.com/api?module=proxy&action=eth_gasPrice'
   },
 };

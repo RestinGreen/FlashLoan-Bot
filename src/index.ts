@@ -10,6 +10,7 @@ import { getPriceAllDex, MaxRoute } from "./price/direct_price_index";
 import { dodo_flashloan_pools } from "./address/flashloan_pool";
 import { FlashParams } from "./types/flash";
 import { dex_dict } from "./address/dex_data";
+import { getBigNumber, localNodeWs } from "./utils/general";
 
 
 const routerTokens: IToken[] = [Coin.USDC, Coin.WETH, Coin.WMATIC, Coin.WBTC]
@@ -132,25 +133,27 @@ function main() {
     // gets the best profit with direct swaps
 
     tokenIns.forEach(async tin => {
-        console.log('asd')
         tokenOuts.forEach(async tout => {
-            console.log('asd2')
             if (tin.symbol != tout.symbol) {
-                while (1) {
+                let prev = Date.now()
+                localNodeWs.on('block', async (blockNumber) => {
+                    let now = Date.now()
+                    console.log(`block: ${blockNumber} validated in: ${now - prev} ${tin.symbol} / ${tout.symbol}`)
+                    prev = now
                     let start = Date.now()
                     var [profitable, route] = await getPriceAllDex(flashAmountBN, tin, tout)
                     let end = Date.now()
-                    console.log('get price time: ', end - start)
+                    // console.log('get price time: ', end - start)
                     let id = route.buy_from.concat(route.sell_at).concat(tokenIn.symbol).concat(tokenOut.symbol)
-                    if (profitable && route.profit.gt(1)) {
-                        if (!flashloaning.get(id)) {
+                    if (profitable && route.profit.gt(getBigNumber(1, tin.decimals))) {
+                        if (!flashloaning.get(id) || flashloaning.get(id) == false) {
                             flashloaning.set(id, true)
                             console.log('get price time: ', end - start)
                             console.log(`initating flash loan`)
 
                             const gasPrice = await provider.getGasPrice();
-                            const extraGas = ethers.utils.parseUnits("100", "gwei");
-
+                            const extraGas = ethers.utils.parseUnits("20", "gwei");
+                            console.log(`gas price: ${gasPrice}`)
                             var flashpool: string = dodo_flashloan_pools[tin.symbol]
 
                             var params: FlashParams = {
@@ -163,18 +166,21 @@ function main() {
                                 buyAmount: flashAmount,
                                 flashLoanPool: flashpool
                             }
-                            
+
                             start = Date.now()
-                            await flashLoan.connect(signer).dodoFlashLoan(params, {
-                                gasLimit: 15000000,
-                                gasPrice: gasPrice.add(extraGas),
-                            })
+                            await flashLoan.connect(signer).dodoFlashLoan(params
+                                ,
+                                {
+                                    gasLimit: 15000000,
+                                    gasPrice: gasPrice.add(extraGas),
+                                }
+                            )
                             console.log('flashloan time', Date.now() - start)
 
                             flashloaning.set(id, false)
                         }
                     }
-                }
+                })
             }
         })
     })
@@ -196,7 +202,6 @@ function main() {
     //     promiseDepth(graphOut.nodes.get(0)!, max.finalAmount)
     // })
 
-    console.log('asd3')
 }
-
+console.log('---------------------------------------------------------------------------------------------------------------------------------------------------------')
 main()

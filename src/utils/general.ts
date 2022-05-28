@@ -10,7 +10,8 @@ require('dotenv').config();
 // export const alchemyProviderWSS = new providers.AlchemyWebSocketProvider('matic', process.env.ALCHEMY_API_KEY)
 // export const jsonRPCProvider = new providers.JsonRpcProvider(process.env.ALCHEMY_HTTP,'matic')
 export const localNode = new providers.JsonRpcProvider('http://127.0.0.1:8545')
-// export const fork = new providers.JsonRpcProvider('http://127.0.0.1:9999')
+export const localNodeWs = new providers.WebSocketProvider('ws://127.0.0.1:8546')
+export const fork = new providers.JsonRpcProvider('http://127.0.0.1:9999')
 
 export const getBigNumber = (amount: number | BigNumber, decimals: number = 18) => {
     return ethers.utils.parseUnits(amount.toString(), decimals);
