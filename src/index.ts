@@ -1,17 +1,11 @@
 require('dotenv').config();
 
 import { Coin, IToken } from "./address/coin";
-import { flashAmount, flashAmountBN, flashLoan, provider, signer, tokenIn, tokenIns, tokenOut, tokenOuts } from "./config";
+import { flashAmountBN, tokenIns, tokenOuts, wsProvider } from "./config";
 import { Graph, Node } from "./types/graph";
-import { BigNumber, ethers } from "ethers"
-import { getBestPriceAsync } from "./price/async_graph_price_index";
-import { Route, RouteNode } from "./types/maxRoute";
-import { getPriceAllDex, MaxRoute } from "./price/direct_price_index";
-import { dodo_flashloan_pools } from "./address/flashloan_pool";
-import { FlashParams } from "./types/flash";
-import { dex_dict } from "./address/dex_data";
-import { getBigNumber, localNodeWs } from "./utils/general";
-
+import { ethers } from "ethers"
+import { RouteNode } from "./types/maxRoute";
+import { findOpAndDoArbitrage } from "./price/async_direct_price_index";
 
 const routerTokens: IToken[] = [Coin.USDC, Coin.WETH, Coin.WMATIC, Coin.WBTC]
 
@@ -43,165 +37,98 @@ function buildGraph(tokenIn: IToken, tokenOut: IToken): Graph {
 
 }
 
-
-
 function printRoute(route: RouteNode) {
     console.log(`${route.dex}: ${route.tokenIn.symbol} -> ${route.tokenOut.symbol} = ${ethers.utils.formatUnits(route.amountBought, route.tokenOut.decimals)}`)
 }
 
-async function promiseDepth(head: Node, amountIn: BigNumber): Promise<Route> {
+// async function promiseDepth(head: Node, amountIn: BigNumber): Promise<Route> {
 
-    var wait: any[] = []
-    var wait1: any[] = []
-    var wait2: any[] = []
-    var routes: Route[] = []
+//     var wait: any[] = []
+//     var wait1: any[] = []
+//     var wait2: any[] = []
+//     var routes: Route[] = []
 
-    head.neighbours.forEach(layer1 => {
+//     head.neighbours.forEach(layer1 => {
 
-        wait.push(getBestPriceAsync(amountIn, head.token, layer1.token).then(max1 => {
+//         wait.push(getBestPriceAsync(amountIn, head.token, layer1.token).then(max1 => {
 
-            if (layer1.neighbours.length == 0) {
-                let route: Route = new Route(max1.amountBought)
-                console.log(`---------------------------`)
-                printRoute(max1)
-                route.addNode(max1)
-                console.log(`---------------------------`)
-                routes.push(route)
+//             if (layer1.neighbours.length == 0) {
+//                 let route: Route = new Route(max1.amountBought)
+//                 console.log(`---------------------------`)
+//                 printRoute(max1)
+//                 route.addNode(max1)
+//                 console.log(`---------------------------`)
+//                 routes.push(route)
 
-            } else {
-                layer1.neighbours.forEach(layer2 => {
+//             } else {
+//                 layer1.neighbours.forEach(layer2 => {
 
-                    wait1.push(getBestPriceAsync(max1.amountBought, layer1.token, layer2.token).then(max2 => {
-                        if (layer2.neighbours.length == 0) {
-                            let route: Route = new Route(max2.amountBought)
-                            console.log(`---------------------------`)
-                            printRoute(max1)
-                            route.addNode(max1)
-                            printRoute(max2)
-                            route.addNode(max2)
-                            console.log(`---------------------------`)
-                            routes.push(route)
-                        } else {
-                            layer2.neighbours.forEach(layer3 => {
-                                wait2.push(getBestPriceAsync(max2.amountBought, layer2.token, layer3.token).then(max3 => {
-                                    let route: Route = new Route(max3.amountBought)
-                                    console.log(`---------------------------`)
-                                    printRoute(max1)
-                                    route.addNode(max1)
-                                    printRoute(max2)
-                                    route.addNode(max2)
-                                    printRoute(max3)
-                                    route.addNode(max3)
-                                    console.log(`---------------------------`)
-                                    routes.push(route)
-                                }))
-                            })
-                        }
-                    }))
-                })
-            }
-        }))
-    })
+//                     wait1.push(getBestPriceAsync(max1.amountBought, layer1.token, layer2.token).then(max2 => {
+//                         if (layer2.neighbours.length == 0) {
+//                             let route: Route = new Route(max2.amountBought)
+//                             console.log(`---------------------------`)
+//                             printRoute(max1)
+//                             route.addNode(max1)
+//                             printRoute(max2)
+//                             route.addNode(max2)
+//                             console.log(`---------------------------`)
+//                             routes.push(route)
+//                         } else {
+//                             layer2.neighbours.forEach(layer3 => {
+//                                 wait2.push(getBestPriceAsync(max2.amountBought, layer2.token, layer3.token).then(max3 => {
+//                                     let route: Route = new Route(max3.amountBought)
+//                                     console.log(`---------------------------`)
+//                                     printRoute(max1)
+//                                     route.addNode(max1)
+//                                     printRoute(max2)
+//                                     route.addNode(max2)
+//                                     printRoute(max3)
+//                                     route.addNode(max3)
+//                                     console.log(`---------------------------`)
+//                                     routes.push(route)
+//                                 }))
+//                             })
+//                         }
+//                     }))
+//                 })
+//             }
+//         }))
+//     })
 
-    var startO = Date.now()
-    var start = Date.now()
-    await Promise.all(wait)
-    console.log(`layer1 duration ${Date.now() - start}`)
-    start = Date.now()
-    await Promise.all(wait1)
-    console.log(`layer2 duration ${Date.now() - start}`)
-    start = Date.now()
-    await Promise.all(wait2)
-    console.log(`layer3 duration ${Date.now() - start}`)
-    console.log(`overall duration ${Date.now() - startO}`)
+//     var startO = Date.now()
+//     var start = Date.now()
+//     await Promise.all(wait)
+//     console.log(`layer1 duration ${Date.now() - start}`)
+//     start = Date.now()
+//     await Promise.all(wait1)
+//     console.log(`layer2 duration ${Date.now() - start}`)
+//     start = Date.now()
+//     await Promise.all(wait2)
+//     console.log(`layer3 duration ${Date.now() - start}`)
+//     console.log(`overall duration ${Date.now() - startO}`)
 
-    let max: Route = new Route(BigNumber.from(0))
-    routes.forEach(route => {
-        if (route.finalAmount.gt(max.finalAmount)) {
-            max = route
-        }
-    })
-    max.print()
+//     let max: Route = new Route(BigNumber.from(0))
+//     routes.forEach(route => {
+//         if (route.finalAmount.gt(max.finalAmount)) {
+//             max = route
+//         }
+//     })
+//     max.print()
 
-    return max
-}
-
-function main() {
+//     return max
+// }
 
 
-    var flashloaning: Map<string, boolean> = new Map<string, boolean>()
-    // gets the best profit with direct swaps
-
+function parallelSeparateRoutes() {
+    
     tokenIns.forEach(async tin => {
         tokenOuts.forEach(async tout => {
-            if (tin.symbol != tout.symbol) {
-                let prev = Date.now()
-                localNodeWs.on('block', async (blockNumber) => {
-                    let now = Date.now()
-                    console.log(`block: ${blockNumber} validated in: ${now - prev} ${tin.symbol} / ${tout.symbol}`)
-                    prev = now
-                    let start = Date.now()
-                    var [profitable, route] = await getPriceAllDex(flashAmountBN, tin, tout)
-                    let end = Date.now()
-                    // console.log('get price time: ', end - start)
-                    let id = route.buy_from.concat(route.sell_at).concat(tokenIn.symbol).concat(tokenOut.symbol)
-                    if (profitable && route.profit.gt(getBigNumber(1, tin.decimals))) {
-                        if (!flashloaning.get(id) || flashloaning.get(id) == false) {
-                            flashloaning.set(id, true)
-                            console.log('get price time: ', end - start)
-                            console.log(`initating flash loan`)
-
-                            const gasPrice = await provider.getGasPrice();
-                            const extraGas = ethers.utils.parseUnits("20", "gwei");
-                            console.log(`gas price: ${gasPrice}`)
-                            var flashpool: string = dodo_flashloan_pools[tin.symbol]
-
-                            var params: FlashParams = {
-                                tokenIn: tin.address,
-                                tokenOut: tout.address,
-                                buyDexType: dex_dict[route.buy_from].type,
-                                sellDexType: dex_dict[route.sell_at].type,
-                                buyDexAddress: dex_dict[route.buy_from].address,
-                                sellDexAddress: dex_dict[route.sell_at].address,
-                                buyAmount: flashAmount,
-                                flashLoanPool: flashpool
-                            }
-
-                            start = Date.now()
-                            await flashLoan.connect(signer).dodoFlashLoan(params
-                                ,
-                                {
-                                    gasLimit: 15000000,
-                                    gasPrice: gasPrice.add(extraGas),
-                                }
-                            )
-                            console.log('flashloan time', Date.now() - start)
-
-                            flashloaning.set(id, false)
-                        }
-                    }
-                })
-            }
+            wsProvider.eth.subscribe('newBlockHeaders', async (error, event) => {
+                console.log(`block: ${event.number}`)
+                findOpAndDoArbitrage(flashAmountBN, tin, tout, 1)
+            })
         })
     })
-    // getPriceAllDex(flashAmountBN, tokenIn, tokenOut).catch(error => {
-    //     console.log(error)
-    // })
-
-
-    // gets the max price
-    // getBestPriceAsync(flashAmountBN, tokenIn, tokenOut)
-
-    //async graph type best rout max amount out search
-
-    // var graphIn = buildGraph(tokenIn, tokenOut)
-    // var graphOut = buildGraph(tokenOut, tokenIn)
-    // promiseDepth(graphIn.nodes.get(0)!, flashAmountBN).then(max => {
-    //     console.log(`------------------------------------------------------------------------------`)
-
-    //     promiseDepth(graphOut.nodes.get(0)!, max.finalAmount)
-    // })
-
 }
 console.log('---------------------------------------------------------------------------------------------------------------------------------------------------------')
-main()
+parallelSeparateRoutes()

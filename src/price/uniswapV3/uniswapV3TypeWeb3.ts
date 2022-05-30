@@ -1,6 +1,7 @@
-import { BigNumber, Contract } from "ethers";
+import BN from "bn.js";
+import { Contract } from 'web3-eth-contract';
 import { IToken } from "../../address/coin";
-import { getBigNumber, ZERO } from "../../utils/general";
+import { getBigNumber, ZERO, ZEROO } from "../../utils/general";
 
 type FeeMap = {
     [pair: string]: {
@@ -9,38 +10,12 @@ type FeeMap = {
 };
 
 
-export const getPriceOnUniV3Promise = (
-    tokenIn: IToken,
-    tokenOut: IToken,
-    amountIn: BigNumber,
-    contract: Contract
-): Promise<BigNumber> => {
-
-    try {
-        var fee = uniswapV3Fee[tokenIn.symbol][tokenOut.symbol]
-    } catch (error) {
-        var fee = 3000
-    }
-
-    var quotedAmountOut = contract.callStatic.quoteExactInputSingle(
-        tokenIn.address,
-        tokenOut.address,
-        fee,
-        amountIn,
-        0
-    );
-    // if (!BigNumber.isBigNumber(quotedAmountOut)) {
-    //     return getBigNumber(0);
-    // }
-    return quotedAmountOut;
-};
-
 export const getPriceOnUniV3 = async (
     tokenIn: IToken,
     tokenOut: IToken,
-    amountIn: BigNumber,
+    amountIn: BN,
     contract: Contract
-): Promise<BigNumber> => {
+): Promise<BN> => {
 
     try {
         var fee = uniswapV3Fee[tokenIn.symbol][tokenOut.symbol]
@@ -48,13 +23,13 @@ export const getPriceOnUniV3 = async (
         var fee = 3000
     }
     try {
-        let price = await contract.callStatic.quoteExactInputSingle(
+        let price = await contract.methods.quoteExactInputSingle(
             tokenIn.address,
             tokenOut.address,
             fee,
             amountIn,
             0
-        )
+        ).call()
         return price
     } catch (error) {
         console.error(`
@@ -62,7 +37,7 @@ export const getPriceOnUniV3 = async (
         -------------------------
         ${error}
         -------------------------`)
-        return ZERO
+        return ZEROO
     }
 };
 

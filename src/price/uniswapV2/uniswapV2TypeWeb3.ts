@@ -1,39 +1,23 @@
-import { BigNumber, Contract } from "ethers";
-import { ZERO } from "../../utils/general";
+import BN from "bn.js"
+import { Contract } from 'web3-eth-contract';
 
-export const getPriceOnUniV2Promise = (
-    tokenIn: string,
-    tokenOut: string,
-    amountIn: BigNumber,
-    contract: Contract
-): Promise<[BigNumber, BigNumber]> => {
-
-    var price = contract.callStatic.getAmountsOut(
-        amountIn,
-        [
-            tokenIn,
-            tokenOut
-        ]
-    )
-    return price
-}
 
 export const getPriceOnUniV2 = async (
     tokenIn: string,
     tokenOut: string,
-    amountIn: BigNumber,
+    amountIn: BN,
     contract: Contract
-): Promise<BigNumber> => {
+): Promise<BN> => {
 
     // var start = Date.now()
     try {
-        var price = await contract.getAmountsOut(
+        var price = await contract.methods.getAmountsOut(
             amountIn,
             [
                 tokenIn,
                 tokenOut
             ]
-        )
+        ).call()
         return price[1]
     } catch (error) {
         console.error(`
@@ -47,4 +31,3 @@ export const getPriceOnUniV2 = async (
         // console.log(Date.now() - start)
     }
 }
-
