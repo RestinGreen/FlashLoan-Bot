@@ -1,5 +1,6 @@
 import BN from "bn.js"
 import { Contract } from 'web3-eth-contract';
+import { ZEROO } from "../../utils/general";
 
 
 export const getPriceOnUniV2 = async (
@@ -25,8 +26,7 @@ export const getPriceOnUniV2 = async (
         -------------------------
         ${error}
         -------------------------`)
-        process.exit(0)
-        // return ZERO
+        return ZEROO
     } finally {
         // console.log(Date.now() - start)
     }

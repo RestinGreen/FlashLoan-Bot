@@ -17,8 +17,8 @@ contract Flashloan {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    event ArbitrageSuccessful(address tokenOut, uint256 amount);
-    event RealizedProfit(address token, uint256 amount);
+    event Swapped(address tokenOut, uint256 amount);
+    event Moni(address token, uint256 amount);
 
     constructor() {}
 
@@ -86,27 +86,24 @@ contract Flashloan {
 
         require(sender == address(this) && msg.sender == params.flashLoanPool, "HANDLE_FLASH_NENIED");
 
-        //Note: Realize your own logic using the token from flashLoan pool.
         require(IERC20(params.tokenIn).balanceOf((address(this)))>= params.buyAmount, "Borrow unsuccessful");
-        // console.log(IERC20(params.tokenIn).balanceOf((address(this))));
+
         swap(params.buyDexType, params.buyAmount, params.tokenIn, params.tokenOut, params.buyDexAddress);
-        //get swapped token amount in contract
+        
         uint256 boughtTokenAmount = IERC20(params.tokenOut).balanceOf(address(this));
-        // console.log('token out amount: ', boughtTokenAmount);
-        // sell back
+        require(boughtTokenAmount > 0, 'First swap failed');
         swap(params.sellDexType, boughtTokenAmount, params.tokenOut, params.tokenIn, params.sellDexAddress);
 
-        emit ArbitrageSuccessful(params.tokenOut, boughtTokenAmount);
-
-        //Return funds
+        emit Swapped(params.tokenOut, boughtTokenAmount);
+        uint256 currentTokenInBalance = IERC20(params.tokenIn).balanceOf(address(this));
+        require(currentTokenInBalance > 0, 'Second swap failed');
+        require(currentTokenInBalance > params.buyAmount, 'No profit');
         IERC20(params.tokenIn).transfer(params.flashLoanPool, params.buyAmount);
 
-        //send proffit to personal wallet
         uint256 profit = IERC20(params.tokenIn).balanceOf(address(this));
-        // console.log('profit', profit);
+        require(profit > 0, 'There is no profit');
         IERC20(params.tokenIn).transfer(params.me, profit);
-        emit RealizedProfit(params.tokenIn, profit);
-        //check owner balance
+        emit Moni(params.tokenIn, profit);
         // console.log('amount of coin in owner address: ', IERC20(params.tokenIn).balanceOf(address(params.me)));
     }
 
@@ -116,7 +113,7 @@ contract Flashloan {
             swapOnUniswapV2(amount, tokenIn, tokenOut, router);
 
         } else if (dexType == DexType.UNISWAP_V3) {
-            swapOnUniswapV3(amount, tokenIn, tokenOut, router);
+            swapOnUniswapV3(amount, tokenIn, tokenOut);
         }
 
     }
@@ -134,7 +131,7 @@ contract Flashloan {
 
     }
     //TODO pass router from typescript side
-    function swapOnUniswapV3(uint256 amount, address tokenIn, address tokenOut, address router) internal
+    function swapOnUniswapV3(uint256 amount, address tokenIn, address tokenOut) internal
         returns(uint256 amountOut) {
         ISwapRouter swapRouter = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
         approveToken(tokenIn, address(swapRouter), amount);

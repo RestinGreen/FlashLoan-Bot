@@ -1,5 +1,6 @@
 import { BigNumber, ethers } from "ethers"
 import BN from "bn.js"
+import { formatUnits } from "ethers/lib/utils";
 
 
 export const getBigNumber = (amount: number | BigNumber, decimals: number = 18) => {
@@ -22,4 +23,8 @@ export const convertToBigNumber = (bn: BN): BigNumber => {
 
 export const convertToBN = (bigNumber: BigNumber): BN => {
     return new BN(bigNumber.toString())
+}
+
+export const formatGwei = (bn: BN): string =>{
+    return ethers.utils.formatUnits(convertToBigNumber(bn), 'gwei')
 }

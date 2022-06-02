@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 import { Coin, IToken } from "./address/coin";
-import { flashAmountBN, tokenIns, tokenOuts, wsProvider } from "./config";
+import { flashAmountBN, httpProvider, tokenIns, tokenOuts, wsProvider } from "./config";
 import { Graph, Node } from "./types/graph";
 import { ethers } from "ethers"
 import { RouteNode } from "./types/maxRoute";
@@ -124,8 +124,18 @@ function parallelSeparateRoutes() {
     tokenIns.forEach(async tin => {
         tokenOuts.forEach(async tout => {
             wsProvider.eth.subscribe('newBlockHeaders', async (error, event) => {
-                console.log(`block: ${event.number}`)
-                findOpAndDoArbitrage(flashAmountBN, tin, tout, 1)
+                // console.log(`block: ${event.number}`)
+                try {
+                    findOpAndDoArbitrage(flashAmountBN, tin, tout, event.number)
+                } 
+                catch(error) {
+                    console.error(`
+                    -----------------------------
+                    caught error, resuming monitoring
+                    ${error}
+                    `
+                    )
+                }
             })
         })
     })
