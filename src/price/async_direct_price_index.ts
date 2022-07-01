@@ -1,42 +1,20 @@
 import { Dex, dex_dict, DexData, DexType } from "../address/dex_data"
-import abiv2 from "@uniswap/v2-periphery/build/IUniswapV2Router02.json"
-import abiv3 from "@uniswap/v3-periphery/artifacts/contracts/lens/Quoter.sol/Quoter.json"
-import { convertToBigNumber, convertToBN, formatGwei, getBN, ZEROO } from "../utils/general"
+
+import { buildLog, contracts, convertToBigNumber, convertToBN, formatGwei, formatUnitsBN, getBN, log, notify, ZERO } from "../utils/general"
 import { IToken } from "../address/coin"
-import { flashAmount, flashLoan, flashLoanAddress, httpProvider, myAccount, walletPrivateKey } from "../config"
+import { flashAmount, flashLoan, flashLoanAddress, ipcProvider, myAccount, walletPrivateKey } from "../config"
 import { FlashParams } from "../types/flash"
 import { dodo_flashloan_pools } from "../address/flashloan_pool"
-import { BigNumber, ethers } from "ethers"
+import { ethers } from "ethers"
 import { Contract } from 'web3-eth-contract';
 import { AbiItem } from 'web3-utils'
-import BN from "bn.js"
+import { BigNumber } from "bignumber.js";
 import { getPriceOnUniV2 } from "./uniswapV2/uniswapV2TypeWeb3"
 import { getPriceOnUniV3 } from "./uniswapV3/uniswapV3TypeWeb3"
-import Web3 from "web3"
+import { calculateOptimalInput, GasSetting, getReserves } from "./mempoolscan"
 
-
-const createContracts = () => {
-    var contracts: Map<string, Contract> = new Map<string, Contract>()
-    Object.entries(dex_dict).forEach(([key, value]) => {
-        contracts.set(
-            key,
-            new httpProvider.eth.Contract(
-                value.type == 0 ? abiv2.abi as AbiItem[] : abiv3.abi as AbiItem[],
-                value.address,
-            ))
-
-    }
-
-    )
-    return contracts
-}
-
-const contracts: Map<string, Contract> = createContracts()
-
-
-
-const getPrice = (tokenAmount: BN, tokenIn: IToken, tokenOut: IToken, dex: string)
-    : Promise<BN> => {
+const getPrice = (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, dex: string)
+    : Promise<BigNumber> => {
 
     switch (dex_dict[dex].type) {
         case DexType.UNISWAP_V2:
@@ -45,7 +23,7 @@ const getPrice = (tokenAmount: BN, tokenIn: IToken, tokenOut: IToken, dex: strin
                 tokenIn.address,
                 tokenOut.address,
                 tokenAmount,
-                contracts.get(dex)!)
+                contracts.get(dex)!.router!)
 
         case DexType.UNISWAP_V3:
         default:
@@ -53,53 +31,8 @@ const getPrice = (tokenAmount: BN, tokenIn: IToken, tokenOut: IToken, dex: strin
                 tokenIn,
                 tokenOut,
                 tokenAmount,
-                contracts.get(dex)!)
+                contracts.get(dex)!.router!)
     }
-
-}
-
-
-export const findOpAndDoArbitrage = async (tokenAmount: BN, tokenIn: IToken, tokenOut: IToken, blockNumber: number) => {
-
-    var flashloaning = false
-
-
-    Object.keys(dex_dict).forEach(async buyDex => {
-
-        var start = Date.now()
-        var amountOut: BN = await getPrice(tokenAmount, tokenIn, tokenOut, buyDex)
-        var end = Date.now()
-        // console.log(`${tokenIn.symbol} / ${tokenOut.symbol} \t ${buyDex} \t time: ${end-start} \t ${ethers.utils.formatUnits(convertToBigNumber(amountOut), tokenOut.decimals)}`)
-
-        Object.keys(dex_dict).forEach(async sellDex => {
-            if (buyDex != sellDex) {
-
-                var start1 = Date.now()
-                var sellBackAmount: BN = await getPrice(amountOut, tokenOut, tokenIn, sellDex)
-                var end1 = Date.now()
-                // console.log(`${tokenIn.symbol} / ${tokenOut.symbol} \t ${buyDex} \t time: ${end1-start1} \t ${ethers.utils.formatUnits(convertToBigNumber(sellBackAmount), tokenIn.decimals)}`)
-
-                var x = new BN(sellBackAmount.toString())
-
-                let profit: BN = x.sub(tokenAmount)
-                if (profit.gt(getBN(1, tokenIn.decimals)) && !flashloaning) {
-                    flashloaning = true
-                    console.log(`block: ${blockNumber} ${tokenIn.symbol} / ${tokenOut.symbol} \t buy: ${buyDex} | sell:${sellDex} \t time: ${end - start} \t ${ethers.utils.formatUnits(convertToBigNumber(sellBackAmount), tokenIn.decimals)}`)
-                    var flashpool: string = dodo_flashloan_pools[tokenIn.symbol]
-                    executeArbitrage(
-                        tokenIn,
-                        tokenOut,
-                        dex_dict[buyDex].type,
-                        dex_dict[sellDex].type,
-                        dex_dict[buyDex].address,
-                        dex_dict[sellDex].address,
-                        flashAmount,
-                        flashpool)
-                }
-            }
-        })
-    })
-
 
 }
 
@@ -111,7 +44,8 @@ async function executeArbitrage(
     buyDexAddress: string,
     sellDexAddress: string,
     flashloanAmount: number,
-    flashloanPool: string
+    flashloanPool: string,
+    gasSetting: GasSetting
 
 ) {
 
@@ -133,53 +67,102 @@ async function executeArbitrage(
 
     const functionAbi = dodoFlashloanFuntion.encodeABI();
 
-    let estimatedGas;
 
-    console.log("Getting gas estimate");
+    ipcProvider.eth.getGasPrice().then((gasPrice: string) => {
 
-    httpProvider.eth.getGasPrice().then((gasPrice: string) => {
+        const gas: BigNumber = new BigNumber(gasPrice)
+        const fullGas: BigNumber | number | undefined | string = gasSetting.type == 0 ? gasSetting.gasPrice : gasSetting.maxFeePerGas
 
-        console.log("current gas price unformatted: " + ethers.utils.formatUnits(gasPrice, 'gwei'));
-        console.log("current gas price formatted: " + gasPrice);
-        const gas: BN = new BN(gasPrice)
-        const extraGas: BN = convertToBN(ethers.utils.parseUnits('200', 'gwei'))
-        console.log(`extra gas unformatted: ${extraGas}`)
-        console.log(`extra gas formatted: ${ethers.utils.formatUnits(convertToBigNumber(extraGas), 'gwei')}`)
-        const fullGas: BN = gas.add(extraGas)
-        console.log(`fullgas unformatted: ${fullGas}`)
-        console.log(`fullgas formatted: ${ethers.utils.formatUnits(convertToBigNumber(fullGas), 'gwei')}`)
-        console.log(`gas price i will use for the transaction: ${formatGwei(gas.add(extraGas))}`)
+        
+        ipcProvider.eth.getTransactionCount(account, 'latest').then(async _nonce => {
+            var txParams
+            if (gasSetting.type == 0) {
+                txParams = {
+                    from: account,
+                    gas: 2000000,
+                    gasPrice: gasSetting.gasPrice,
+                    nonce: _nonce,
+                    to: flashLoanAddress,
+                    //@ts-ignore
+                    type: '0x0',
+                    data: functionAbi,
+                };
+            } else {
+                txParams = {
+                    from: account,
+                    gas: 2000000,
+                    maxFeePerGas: gasSetting.maxFeePerGas,
+                    maxPriorityFeePerGas: gasSetting.maxPriorityFeePerGas,
+                    nonce: _nonce,
+                    to: flashLoanAddress,
+                    type: '0x2',
+                    data: functionAbi,
+                };
 
-
-        httpProvider.eth.getTransactionCount(account, 'latest').then(async _nonce => {
-
-            console.log("Nonce: " + _nonce);
-            const txParams = {
-                from: account,
-                gas: 2000000,
-                maxFeePerGas: fullGas,
-                maxPriorityFeePerGas: fullGas,
-                nonce: _nonce,
-                to: flashLoanAddress,
-                type: '0x2',
-                data: functionAbi,
-            };
+            }
 
             let start = Date.now()
-            const tx = await httpProvider.eth.accounts.signTransaction(txParams, walletPrivateKey)
-            httpProvider.eth.sendSignedTransaction(tx.rawTransaction!, async (error, hash) => {
+            const tx = await ipcProvider.eth.accounts.signTransaction(txParams, walletPrivateKey)
+            ipcProvider.eth.sendSignedTransaction(tx.rawTransaction!, async (error, hash) => {
                 if (!error) {
                     console.log(`time: ${new Date()}
                     hash: ${hash}
-                    block: ${await httpProvider.eth.getBlockNumber()}`)
+                    block: ${await ipcProvider.eth.getBlockNumber()}`)
                 } else {
-                    console.log(error)
+                    log(`\x1b[38;2;255;0;0m${error.message}\x1b[0m`)
                 }
-            }).catch(error => {
-                console.log(`transaction reverted`)
             })
-            console.log('flashloan time', Date.now() - start)
+            log(`flashloan time: ${Date.now() - start}`)
         })
     });
 
+}
+
+export const checkArbitrage = (tokenA: IToken, tokenB: IToken, amountIn: BigNumber, skipDex: string, logText: string, hash: string, gas: GasSetting, simulatedTokenAReserve: BigNumber, simulatedTokenBReserve: BigNumber) => {
+
+    var flashbn = getBN(flashAmount, tokenB.decimals)
+    Object.keys(dex_dict).forEach(async dex => {
+        if (dex != skipDex){
+            
+            let amountOut = await getPrice(amountIn, tokenA, tokenB, dex)
+            let amountOutBN = new BigNumber(amountOut)
+            if (amountOutBN.gt(flashbn)){
+                log(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}\x1b[0m`)
+                // logText += buildLog(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}\x1b[0m`)
+                executeArbitrage(tokenA, tokenB, 
+                    skipDex=='UNISWAP_V3' ? DexType.UNISWAP_V3 : DexType.UNISWAP_V2,
+                    dex=='UNISWAP_V3' ? DexType.UNISWAP_V3 : DexType.UNISWAP_V2,
+                    dex_dict[skipDex].router,
+                    dex_dict[dex].router,
+                    1000000000,
+                    '0x5333Eb1E32522F1893B7C9feA3c263807A02d561',
+                    gas
+                )
+                var diff: BigNumber = new BigNumber("5000000000000000000")
+                // console.log(logText)
+                log(`big trade: ${hash} in block ${(await ipcProvider.eth.getBlockNumber()).toString()}`)
+                let [reserveA2, reserveB2] = await getReserves(tokenA.address, tokenB.address, dex_dict[dex].router)
+                console.log()
+                log(`${skipDex}: ${tokenA.symbol} ${simulatedTokenAReserve.toString(10)}`)
+                log(`${skipDex}: ${tokenB.symbol} ${simulatedTokenBReserve.toString(10)}`)
+
+                log(`${dex}: ${tokenA.symbol} ${reserveA2.toString(10)}`)
+                log(`${dex}: ${tokenB.symbol} ${reserveB2.toString(10)}`)
+
+                const optimalmine = calculateOptimalInput(simulatedTokenBReserve, simulatedTokenAReserve, reserveA2, reserveB2)
+                log(`optimal mine ${formatUnitsBN(optimalmine, tokenB.decimals)} ${tokenB.symbol}`)
+
+
+                // notify()
+            }
+            else {
+                // logText += buildLog(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}\x1b[0m`)
+                // console.log(logText)
+                log(`${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}`)
+                // log(await ipcProvider.eth.getBlockNumber())
+                // log(hash)
+            }
+        }
+    })
+    
 }

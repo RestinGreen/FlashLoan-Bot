@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("hardhat-gas-reporter");
 require("dotenv").config();
+require("@nomiclabs/hardhat-etherscan");
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -33,8 +34,8 @@ module.exports = {
       url: 'http://127.0.0.1:8545',
       accounts: [process.env.WALLET_PRIVATE_KEY]
     },
-    local: {
-      url: 'http://127.0.0.1:9999',
+    test: {
+      url: 'http://127.0.0.1:8888',
       // accounts: [process.env.WALLET_PRIVATE_KEY]
     }
   },
@@ -49,4 +50,9 @@ module.exports = {
     gasPrice: 500,
     // gasPriceApi: 'https://api.polygonscan.com/api?module=proxy&action=eth_gasPrice'
   },
+  etherscan: {
+    apiKey: {
+      polygon: 'YB6QMVU7GJTPATJ9RZ5X4XH9S8I81GWV85'
+    }
+  }
 };

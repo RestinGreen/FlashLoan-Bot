@@ -39,7 +39,6 @@ export class Node {
     
     id: number
     token: IToken
-    // neighbours: Map<number, Node> = new Map<number, Node>() //szomszedok
     neighbours: Node[] = []
     edge: Edge[] = []   //elek
     route: Node[] = []  //utvonal
