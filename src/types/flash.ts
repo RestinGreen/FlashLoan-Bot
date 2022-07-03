@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers"
+import BigNumber from "bignumber.js"
 import { DexType } from "../address/dex_data"
 
 export type FlashParams = {
@@ -10,6 +10,6 @@ export type FlashParams = {
     sellDexType: DexType
     buyDexAddress: string
     sellDexAddress: string
-    buyAmount: number
+    buyAmount: BigNumber
     flashLoanPool: string
 }

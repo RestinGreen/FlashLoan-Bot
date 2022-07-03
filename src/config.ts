@@ -7,7 +7,6 @@ var net = require('net');
 
 require('dotenv').config();
 
-export const flashAmount = "2"
 // export const flashAmountBN = getBN(flashAmount, tokenIn.decimals)
 
 export const tokenIns = [Coin.USDC]
@@ -28,10 +27,10 @@ block with profit for testing
 // ezt meghivta az en kodom de errort dobott: Fail with error 'ERC20: transfer amount exceeds balance'28845042
 
 //npx hardhat node --fork https://polygon-mainnet.g.alchemy.com/v2/kLQlGBCvwKLhyFtlglA117qDFHjxURUD --fork-block-number 28220198 --port 9999
-// export const wsProvider = new Web3('ws://127.0.0.1:8546')
-// export const ipcProvider = new Web3(new Web3.providers.IpcProvider("/home/matic/.bor/data/bor.ipc", net))
-export const wsProvider = new Web3('ws://127.0.0.1:8888')
-export const ipcProvider = new Web3('http://127.0.0.1:8888')
+export const wsProvider = new Web3('ws://127.0.0.1:8546')
+export const ipcProvider = new Web3(new Web3.providers.IpcProvider("/home/matic/.bor/data/bor.ipc", net))
+// export const wsProvider = new Web3('ws://127.0.0.1:8888')
+// export const ipcProvider = new Web3('http://127.0.0.1:8888')
 
 
 /* contracts on mainnet in order of deployment. latest is at the bottom 

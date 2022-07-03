@@ -2,10 +2,11 @@ import { BigNumber } from "bignumber.js";
 import { Transaction } from "web3-core/types/index";
 import { Coin, IToken } from "../address/coin";
 import { address_dex } from "../address/dex_data";
-import { flashAmount, ipcProvider } from "../config";
+import { ipcProvider } from "../config";
 import { buildLog, formatUnitsBN, getBN, log } from "../utils/general";
 import { checkArbitrage } from "./async_direct_price_index";
-import { calculateMySimulatedBuy, GasSetting, getReserves, getTokenData } from "./mempoolscan";
+import { getAmountOut, GasSetting, getReserves, getTokenData, getDirectPairReserves, decodeStorageSlot } from "./mempoolscan";
+import { watchTokenAddresses, watchTokens } from "./routes";
 
 export async function swapExactTokensForTokens(
     abiDecoder: any,
@@ -14,7 +15,6 @@ export async function swapExactTokensForTokens(
     funcBits: string,
     name: string,
     logText: string,
-    hash: string,
     gas: GasSetting) {
 
     
@@ -43,17 +43,12 @@ export async function swapExactTokensForTokens(
     for (let i = 0; i < decoded_input['params'][2].value.length - 1; i++) {
         let tokenAAddress = decoded_input['params'][2].value[i]
         let tokenBAddress = decoded_input['params'][2].value[i + 1]
-
-        if (tokenBAddress != Coin.USDC.address  //USDC
-            && tokenBAddress != Coin.WETH.address
-            // && tokenBAddress != '0xc2132d05d31c914a87c6611c10748aeb04b58e8f' //USDT
-            // && tokenBAddress != '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063' //DAI
-            // && tokenBAddress != '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270') { //WMATIC
-        ){
-            log(`TokenB |${(await getTokenData(tokenBAddress)).symbol}|is not supported. Skipping`)
-            // logText += buildLog(`TokenB |${(await getTokenData(tokenBAddress)).symbol}|is not supported. Skipping`)
-            continue
-        }
+        
+        // if (!watchTokenAddresses.includes(tokenBAddress)) {
+        //     log(`TokenB |${(await getTokenData(tokenBAddress)).symbol}|is not supported. Skipping`)
+        //     // logText += buildLog(`TokenB |${(await getTokenData(tokenBAddress)).symbol}|is not supported. Skipping`)
+        //     continue
+        // }
 
 
         let tokenASoldAmount: BigNumber = new BigNumber(simulationResult[0][i], 10)
@@ -67,29 +62,26 @@ export async function swapExactTokensForTokens(
 
 
 
-        let [tokenAReserve, tokenBReserve] = await getReserves(tokenA.address, tokenB.address, tx.to!)
-
-        log(`${tokenA.symbol}\t${tokenAReserve}`)
-        // logText += buildLog(`${tokenA.symbol}\t${tokenAReserve}`)
-        log(`${tokenB.symbol}\t${tokenBReserve}`)
-        // logText += buildLog(`${tokenB.symbol}\t${tokenBReserve}`)
+        var reserves = await getDirectPairReserves(tokenA, tokenB)
+        var [tokenAReserve, tokenBReserve]: [BigNumber, BigNumber] = decodeStorageSlot(reserves[`${tokenA.symbol}${tokenB.symbol}${address_dex.get(tx.to!)}`]['storage'], tokenA.address, tokenB.address)
         let simulatedTokenAReserve: BigNumber = tokenAReserve.plus(tokenASoldAmount)
         let simulatedTokenBReserve: BigNumber = tokenBReserve.minus(tokenBBoughtAmount)
-        log(`simulated ${tokenA.symbol}\treserve: ${simulatedTokenAReserve}`)
+
+        // logText += buildLog(`${tokenA.symbol}\t${tokenAReserve}`)
+        // logText += buildLog(`${tokenB.symbol}\t${tokenBReserve}`)
+        // log(`simulated ${tokenA.symbol}\treserve: ${simulatedTokenAReserve}`)
         // logText += buildLog(`simulated ${tokenA.symbol}\treserve: ${simulatedTokenAReserve}`)
-        log(`simulated ${tokenB.symbol}\treserve: ${simulatedTokenBReserve}`)
+        // log(`simulated ${tokenB.symbol}\treserve: ${simulatedTokenBReserve}`)
         // logText += buildLog(`simulated ${tokenB.symbol}\treserve: ${simulatedTokenBReserve}`)
 
-        var amountIn: BigNumber = getBN(flashAmount, tokenB.decimals)
-        var mySimulatedBuy: BigNumber = calculateMySimulatedBuy(simulatedTokenBReserve, simulatedTokenAReserve, amountIn)
 
-        log(`simulated buy with ${flashAmount} ${tokenB.symbol} => ${formatUnitsBN(mySimulatedBuy, tokenA.decimals)} ${tokenA.symbol}`)
+        // log(`simulated buy with ${flashAmount} ${tokenB.symbol} => ${formatUnitsBN(mySimulatedBuy, tokenA.decimals)} ${tokenA.symbol}`)
         // logText += buildLog(`simulated buy with ${flashAmount} ${tokenB.symbol} => ${formatUnitsBN(mySimulatedBuy, tokenA.decimals)} ${tokenA.symbol}`)
 
 
 
 
-        checkArbitrage(tokenA, tokenB, mySimulatedBuy, address_dex.get(tx.to!)!, logText, hash, gas, simulatedTokenAReserve, simulatedTokenBReserve)
+        checkArbitrage(tokenA, tokenB, address_dex.get(tx.to!)!, logText, tx, gas, reserves, simulatedTokenAReserve, simulatedTokenBReserve )
     }
 }
 

@@ -40,13 +40,14 @@ async function main() {
     console.log('usdc: ', ethers.utils.formatUnits(await usdcContract.methods.balanceOf(whale).call(), 6))
     console.log('weth: ', ethers.utils.formatUnits(await wethContract.methods.balanceOf(whale).call(), 18))
 
-    // await wethContract.methods.approve(sushiswap, "100000000000000000000").send({from: whale})
-    await usdcContract.methods.approve(sushiswap, "1000000000000000000000000").send({from: whale})
+    await wethContract.methods.approve(sushiswap, "100000000000000000000").send({from: whale})
+    // await usdcContract.methods.approve(sushiswap, "1000000000000000000000000").send({from: whale})
     await sushiswapcontract.methods.swapExactTokensForTokens(
-        "5000000000",
+        // "5000000000",        // 5000 usdc
+        "1000000000000000000",   // 1 eth
         1,
-        // [weth, usdc],
-        [usdc, weth],
+        [weth, usdc],
+        // [usdc, weth],
         whale,
         9999999999999
         ).send({from: whale})

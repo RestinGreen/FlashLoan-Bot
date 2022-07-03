@@ -12,11 +12,11 @@ export type Node = {
 export const nodes: Node[] = createNodes()
 
 function createNodes(): Node[] {
-    
+
     var routeTokens: IToken[] = [Coin.USDC, Coin.WMATIC, Coin.WETH, Coin.DAI, Coin.USDT]
-    
+
     var returnList: Node[] = []
-    
+
     routeTokens.forEach(token => {
         Object.keys(dex_dict).forEach(dex => {
             returnList.push({
@@ -27,8 +27,8 @@ function createNodes(): Node[] {
             })
         })
     })
-    
-    
+
+
     return returnList
 }
 
@@ -53,3 +53,11 @@ function createRoutes(): Route[] {
     return routes
 }
 export const routes: Route[] = createRoutes()
+
+export var watchTokens: IToken[] = [Coin.USDC, Coin.WMATIC, Coin.DAI, Coin.USDT, Coin.MATIC]
+export var watchTokenAddresses: String[] = [
+    Coin.USDC.address,
+    Coin.WMATIC.address,
+    Coin.DAI.address,
+    Coin.USDT.address,
+    Coin.MATIC.address]

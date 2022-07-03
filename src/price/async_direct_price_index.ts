@@ -1,8 +1,8 @@
-import { Dex, dex_dict, DexData, DexType } from "../address/dex_data"
+import { Dex, dex_dict, DexData, DexType, address_dex } from "../address/dex_data"
 
 import { buildLog, contracts, convertToBigNumber, convertToBN, formatGwei, formatUnitsBN, getBN, log, notify, ZERO } from "../utils/general"
 import { IToken } from "../address/coin"
-import { flashAmount, flashLoan, flashLoanAddress, ipcProvider, myAccount, walletPrivateKey } from "../config"
+import { flashLoan, flashLoanAddress, ipcProvider, myAccount, walletPrivateKey } from "../config"
 import { FlashParams } from "../types/flash"
 import { dodo_flashloan_pools } from "../address/flashloan_pool"
 import { ethers } from "ethers"
@@ -11,7 +11,9 @@ import { AbiItem } from 'web3-utils'
 import { BigNumber } from "bignumber.js";
 import { getPriceOnUniV2 } from "./uniswapV2/uniswapV2TypeWeb3"
 import { getPriceOnUniV3 } from "./uniswapV3/uniswapV3TypeWeb3"
-import { calculateOptimalInput, GasSetting, getReserves } from "./mempoolscan"
+import { Transaction } from "web3-core/types/index";
+
+import { calculateOptimalInput, calculateProfit, decodeStorageSlot, GasSetting, getReserves } from "./mempoolscan"
 
 const getPrice = (tokenAmount: BigNumber, tokenIn: IToken, tokenOut: IToken, dex: string)
     : Promise<BigNumber> => {
@@ -43,7 +45,7 @@ async function executeArbitrage(
     sellDexType: DexType,
     buyDexAddress: string,
     sellDexAddress: string,
-    flashloanAmount: number,
+    flashloanAmount: BigNumber,
     flashloanPool: string,
     gasSetting: GasSetting
 
@@ -112,57 +114,43 @@ async function executeArbitrage(
                     log(`\x1b[38;2;255;0;0m${error.message}\x1b[0m`)
                 }
             })
-            log(`flashloan time: ${Date.now() - start}`)
+            // log(`flashloan time: ${Date.now() - start}`)
         })
     });
 
 }
 
-export const checkArbitrage = (tokenA: IToken, tokenB: IToken, amountIn: BigNumber, skipDex: string, logText: string, hash: string, gas: GasSetting, simulatedTokenAReserve: BigNumber, simulatedTokenBReserve: BigNumber) => {
-
-    var flashbn = getBN(flashAmount, tokenB.decimals)
-    Object.keys(dex_dict).forEach(async dex => {
+export const checkArbitrage = (tokenA: IToken, tokenB: IToken, skipDex: string, logText: string, tx: Transaction, gas: GasSetting, reserves: any, simulatedReserveA: BigNumber, simulatedReserveB: BigNumber) => {
+    log(`big trade: ${tx.hash}`)
+    Object.keys(dex_dict).forEach(dex => {
         if (dex != skipDex){
             
-            let amountOut = await getPrice(amountIn, tokenA, tokenB, dex)
-            let amountOutBN = new BigNumber(amountOut)
-            if (amountOutBN.gt(flashbn)){
-                log(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}\x1b[0m`)
-                // logText += buildLog(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}\x1b[0m`)
-                executeArbitrage(tokenA, tokenB, 
-                    skipDex=='UNISWAP_V3' ? DexType.UNISWAP_V3 : DexType.UNISWAP_V2,
-                    dex=='UNISWAP_V3' ? DexType.UNISWAP_V3 : DexType.UNISWAP_V2,
-                    dex_dict[skipDex].router,
-                    dex_dict[dex].router,
-                    1000000000,
-                    '0x5333Eb1E32522F1893B7C9feA3c263807A02d561',
-                    gas
-                )
-                var diff: BigNumber = new BigNumber("5000000000000000000")
-                // console.log(logText)
-                log(`big trade: ${hash} in block ${(await ipcProvider.eth.getBlockNumber()).toString()}`)
-                let [reserveA2, reserveB2] = await getReserves(tokenA.address, tokenB.address, dex_dict[dex].router)
-                console.log()
-                log(`${skipDex}: ${tokenA.symbol} ${simulatedTokenAReserve.toString(10)}`)
-                log(`${skipDex}: ${tokenB.symbol} ${simulatedTokenBReserve.toString(10)}`)
+                var [reserveA2, reserveB2]: [BigNumber, BigNumber] = decodeStorageSlot(reserves[`${tokenA.symbol}${tokenB.symbol}${dex}`]['storage'],tokenA.address, tokenB.address)
 
-                log(`${dex}: ${tokenA.symbol} ${reserveA2.toString(10)}`)
-                log(`${dex}: ${tokenB.symbol} ${reserveB2.toString(10)}`)
+                const optimalInput = calculateOptimalInput(simulatedReserveB, simulatedReserveA, reserveA2, reserveB2)
+                if(optimalInput.gt(ZERO)) {
+                    log(`optimal input ${formatUnitsBN(optimalInput, tokenB.decimals)} ${tokenB.symbol}`)
+                    const profit = calculateProfit(optimalInput, simulatedReserveB, simulatedReserveA, reserveA2, reserveB2)
+                    log(`\x1b[38;2;124;252;0mprofit at ${dex}: ${formatUnitsBN(profit, tokenB.decimals)} ${tokenB.symbol}\x1b[0m`)
+                    notify()
+                }
+                // if (profit.gt(0)) {
+                //     log(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(profit, tokenB.decimals)} ${tokenB.symbol}\x1b[0m`)
+                    // executeArbitrage(tokenA, tokenB, 
+                    //     skipDex=='UNISWAP_V3' ? DexType.UNISWAP_V3 : DexType.UNISWAP_V2,
+                    //     dex=='UNISWAP_V3' ? DexType.UNISWAP_V3 : DexType.UNISWAP_V2,
+                    //     dex_dict[skipDex].router,
+                    //     dex_dict[dex].router,
+                    //     optimalInput,
+                    //     '0x5333Eb1E32522F1893B7C9feA3c263807A02d561',
+                    //     gas
+                    // )
+                // } else {
+                //     log (`amountout ${dex} = ${formatUnitsBN(profit, tokenB.decimals)} ${tokenB.symbol}`)
+                // }
 
-                const optimalmine = calculateOptimalInput(simulatedTokenBReserve, simulatedTokenAReserve, reserveA2, reserveB2)
-                log(`optimal mine ${formatUnitsBN(optimalmine, tokenB.decimals)} ${tokenB.symbol}`)
-
-
-                // notify()
             }
-            else {
-                // logText += buildLog(`\x1b[38;2;124;252;0mamountOut ${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}\x1b[0m`)
-                // console.log(logText)
-                log(`${dex} = ${formatUnitsBN(amountOut, tokenB.decimals)}`)
-                // log(await ipcProvider.eth.getBlockNumber())
-                // log(hash)
-            }
-        }
-    })
+        })
+    
     
 }

@@ -1,7 +1,7 @@
 
 
 import { bn1000, bn997, buildLog, contracts, formatUnitsBN, getBN, log } from "../src/utils/general"
-import { routes } from "../src/price/routes"
+import { routes, watchTokens } from "../src/price/routes"
 import { Coin, IToken } from "../src/address/coin"
 
 import { address_dex, DexType, dex_dict } from "../src/address/dex_data"
@@ -12,9 +12,10 @@ import { account$, account$$, block$, query$ } from "../src/__generated/fetchers
 import { execute, setGraphQLExecutor } from "../src/__generated"
 import { ParameterRef } from "graphql-ts-client-api"
 import { createFieldOptions } from "graphql-ts-client-api/dist/FieldOptions"
-import { calculateMySimulatedBuy, calculatePairAddress, getReserves } from "../src/price/mempoolscan"
+import { getAmountOut, calculatePairAddress, getReserves, getDirectPairReserves, decodeStorageSlot } from "../src/price/mempoolscan"
 import { selectAll } from "../src/database"
 import { BigNumber } from "bignumber.js";
+import { GraphQLResponse } from "graphql-request/dist/types"
 
 const { request, gql } = require('graphql-request')
 const fetch = require("node-fetch")
@@ -161,31 +162,33 @@ function pr3() {
 }
 
 
-async function decodeStorageSlot(a: string) {
+//  function decodeStorageSlot() {
+//     // storage: '0x62c0b0f10000000000de65acc2befa9f885c000000078fdccfea0da2c88bae75',
+//     // address: '0xadbf1854e5883eb8aa7baf50705338739e558e5b'
+//     var a = "0x62c0b0f10000000000de65acc2befa9f885c000000078fdccfea0da2c88bae75"
+//     var start = Date.now()
+//     // var a = await httpProvider.eth.getStorageAt('0x096c5ccb33cfc5732bcd1f3195c13dbefc4c82f4', 8)
+//     log(a)
 
-    var start = Date.now()
-    // var a = await httpProvider.eth.getStorageAt('0x096c5ccb33cfc5732bcd1f3195c13dbefc4c82f4', 8)
-    log(a)
+//     var base = a.substring(2)
 
-    var base = a.substring(2)
+//     var block = base.substring(0, 8)
+//     log(block)
+//     var blbn = new BigNumber(block, 16)
+//     log(`block number: ${blbn.toString(10)}`)
 
-    var block = base.substring(0, 8)
-    log(block)
-    var blbn = new BigNumber(block, 16)
-    log(`block number: ${blbn.toString(10)}`)
+//     var reserve0 = base.substring(36, 64)
+//     log(reserve0)
+//     var r1b1 = new BigNumber(reserve0, 16)
+//     log(`reserve0: ${r1b1.toString(10)}`)
 
-    var reserve0 = base.substring(36, 64)
-    log(reserve0)
-    var r1b1 = new BigNumber(reserve0, 16)
-    log(`reserve0: ${r1b1.toString(10)}`)
+//     var reserve1 = base.substring(8, 36)
+//     log(reserve1)
+//     var r0bn = new BigNumber(reserve1, 16)
+//     log(`reserve1: ${r0bn.toString(10)}`)
 
-    var reserve1 = base.substring(8, 36)
-    log(reserve1)
-    var r0bn = new BigNumber(reserve1, 16)
-    log(`reserve1: ${r0bn.toString(10)}`)
-
-    log(Date.now() - start)
-}
+//     log(Date.now() - start)
+// }
 
 
 async function oldgraphql() {
@@ -312,25 +315,25 @@ async function slip() {
 
     var ta = Coin.USDC
     var tb = Coin.WETH
-    
+
     var quick = await getReserves(ta.address, tb.address, "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506")
     var sushi = await getReserves(ta.address, tb.address, "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff")
     // var quick = [new BigNumber(924640389686500890254), new BigNumber(1124480494871)]
     // var sushi = [new BigNumber(928640389686500890254), new BigNumber(1164480494871)]
 
     var amountIn: BigNumber = getBN("1000", ta.decimals)
-    var buyTB = calculateMySimulatedBuy(quick[0], quick[1], amountIn)
+    var buyTB = getAmountOut(quick[0], quick[1], amountIn)
     // log(`${formatUnitsBN(buyTB, tb.decimals)} ${tb.symbol} bought on quickswap`)
 
-    var sellTB = calculateMySimulatedBuy(sushi[1], sushi[0], buyTB)
+    var sellTB = getAmountOut(sushi[1], sushi[0], buyTB)
     log(`profit: ${formatUnitsBN(sellTB.minus(amountIn).decimalPlaces(0), ta.decimals)}`)
-    
-    
+
+
     var bn1000_sqr = bn1000.multipliedBy(bn1000)
     var bn997_sqr = bn997.multipliedBy(bn997)
     var bn997000 = bn1000.multipliedBy(bn997)
 
-    var gyok =  (quick[0].multipliedBy(sushi[0]).multipliedBy(quick[1]).multipliedBy(sushi[1])).sqrt().decimalPlaces(0)
+    var gyok = (quick[0].multipliedBy(sushi[0]).multipliedBy(quick[1]).multipliedBy(sushi[1])).sqrt().decimalPlaces(0)
 
     var szamlalo = (bn1000_sqr.negated().multipliedBy(quick[0]).multipliedBy(sushi[0])).plus(bn997000.multipliedBy(gyok))
 
@@ -346,4 +349,69 @@ async function slip() {
     // log(formatUnitsBN(sellTB, ta.decimals))
 
 }
-test()
+async function directPairsGraphQL() {
+    var query = gql`
+    query () {
+        block {
+            `
+
+    let tokenA: IToken = Coin.WETH
+    let tokenB: IToken = Coin.USDC
+
+    watchTokens.forEach(tempToken => {
+        if (tempToken.symbol != tokenA.symbol)
+            Object.keys(dex_dict).forEach(dex => {
+                query +=
+                    `${tokenA.symbol}${tempToken.symbol}${dex}:account(address: "${calculatePairAddress(tokenA.address, tempToken.address, dex_dict[dex].router)}"){
+                    storage(slot: "0x0000000000000000000000000000000000000000000000000000000000000008")
+                    address
+                }
+                `
+            })
+    })
+
+    watchTokens.forEach(tempToken => {
+        if (tempToken.symbol != tokenB.symbol)
+            Object.keys(dex_dict).forEach(dex => {
+                query +=
+                    `${tempToken.symbol}${tokenB.symbol}${dex}:account(address: "${calculatePairAddress(tempToken.address, tokenB.address, dex_dict[dex].router)}"){
+                    storage(slot: "0x0000000000000000000000000000000000000000000000000000000000000008")
+                    address
+                }
+                `
+            })
+    })
+
+    query += `
+            }
+        }`
+
+    console.log(query)
+    var start = Date.now()
+    var graphql = await request('http://localhost:8545/graphql', query)
+        .catch((err: any) => { console.log(err) })
+
+    console.log(graphql['block'])
+
+    console.log(Date.now() - start)
+}
+
+
+async function testReserves() {
+
+    let tokenA: IToken = Coin.WETH
+    let tokenB: IToken = Coin.USDC
+    let to = "0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506"
+
+    var reserves = await getDirectPairReserves(tokenA, tokenB)
+    var [tokenAReserve, tokenBReserve]: [BigNumber, BigNumber] = decodeStorageSlot(reserves[`${tokenA.symbol}${tokenB.symbol}${address_dex.get(to!)}`]['storage'], tokenA.address, tokenB.address)
+    log(reserves[`${tokenA.symbol}${tokenB.symbol}${address_dex.get(to!)}`]['address'])
+
+    let [tokenAReservee, tokenBReservee] = await getReserves(tokenA.address, tokenB.address, to!)
+    console.log('igazi', tokenAReservee.toString(10))
+    console.log('igazi', tokenBReservee.toString(10))
+    console.log('graph', tokenAReserve.toString(10))
+    console.log('graph', tokenBReserve.toString(10))
+}
+
+testReserves()
