@@ -8,12 +8,12 @@ const { ethers } = require("hardhat");
 async function main() {
   // Hardhat always runs th
 
-  const F = await ethers.getContractFactory("Flashloan")
-  const flashloan = await F.deploy()
+  const F = await ethers.getContractFactory("DoSimpleArb")
+  const simpleArb = await F.deploy()
 
-  await flashloan.deployed()
+  await simpleArb.deployed()
   
-  console.log("flashloan deployed to:", flashloan.address);
+  console.log("simple arb deployed to:", simpleArb.address);
   
 }
 

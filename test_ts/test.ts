@@ -1,6 +1,6 @@
 
 
-import { bn1000, bn997, buildLog, contracts, formatUnitsBN, getBN, log } from "../src/utils/general"
+import { bn1000, bn997, buildLog, contracts, formatUnitsBN, getBN, log, ZERO } from "../src/utils/general"
 import { routes, watchTokens } from "../src/price/routes"
 import { Coin, IToken } from "../src/address/coin"
 
@@ -12,8 +12,8 @@ import { account$, account$$, block$, query$ } from "../src/__generated/fetchers
 import { execute, setGraphQLExecutor } from "../src/__generated"
 import { ParameterRef } from "graphql-ts-client-api"
 import { createFieldOptions } from "graphql-ts-client-api/dist/FieldOptions"
-import { getAmountOut, calculatePairAddress, getReserves, getDirectPairReserves, decodeStorageSlot } from "../src/price/mempoolscan"
-import { selectAll } from "../src/database"
+import { getAmountOut, calculatePairAddress, getReserves, getDirectPairReserves, decodeStorageSlot, getAmountIn } from "../src/price/mempoolscan"
+import { blacklist, selectAll, updateMinimum } from "../src/database"
 import { BigNumber } from "bignumber.js";
 import { GraphQLResponse } from "graphql-request/dist/types"
 
@@ -414,4 +414,70 @@ async function testReserves() {
     console.log('graph', tokenBReserve.toString(10))
 }
 
-testReserves()
+function createWallet() {
+
+    var account = ipcProvider.eth.accounts.create()
+    console.log(account)
+}
+
+async function getMinProfit() {
+
+    const USDC = Coin.USDC
+    const minUSDC = getBN(0.01, USDC.decimals)
+    const WMATIC = Coin.WMATIC
+    const minWMATIC = getBN(0.01, WMATIC.decimals)
+    var tokens: IToken[] = await selectAll()
+    // type Table = {
+    //     symbolA: string
+    //     symbolB: string
+    //     reserve0: string
+    //     reserve1: string
+    //     pair: string
+    //     min: number
+    // }
+
+    // var table: Table[] = []
+    for (let i = 0; i < tokens.length; i++) {
+        let token = tokens[i]
+        var [reserve0, reserve1, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, USDC.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
+        var [reserve00, reserve11, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, WMATIC.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
+        if (!reserve0.isZero() && !reserve00.isZero() && !reserve1.isZero() && !reserve11.isZero()) {
+            let min1 = getAmountIn(reserve0, reserve1, minUSDC)
+            let min2 = getAmountIn(reserve00, reserve11, minWMATIC)
+            if (min1.gt(ZERO) || min2.gt(ZERO)) {
+                if (min1.gt(min2)) {
+                    // table.push({
+                    //     symbolA: token.symbol,
+                    //     symbolB: USDC.symbol,
+                    //     reserve0: reserve0.toString(10),
+                    //     reserve1: reserve1.toString(10),
+                    //     pair: pair,
+                    //     min: min1.toNumber()//formatUnitsBN(min1, token.decimals)
+                    // })
+                    updateMinimum(min1.toString(10), token.address)
+                } else {
+                    // table.push({
+                    //     symbolA: token.symbol,
+                    //     symbolB: WMATIC.symbol,
+                    //     reserve0: reserve00.toString(10),
+                    //     reserve1: reserve11.toString(10),
+                    //     pair: pair,
+                    //     min: min2.toNumber()//formatUnitsBN(min2, token.decimals)
+                    // })
+                    updateMinimum(min2.toString(10), token.address)
+                }
+            } else {
+                blacklist(token.address)
+            }
+        } else {
+            blacklist(token.address)
+        }
+
+    }
+
+    // console.table(table)
+    // console.log(table.length)
+
+}
+
+getMinProfit()

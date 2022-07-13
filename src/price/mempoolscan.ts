@@ -6,14 +6,15 @@ import { QueryResult } from "pg";
 import { address_dex, dex_dict } from "../address/dex_data";
 import { ipcProvider, wsProvider } from "../config";
 import { findSymbolByAddress, insertTokenData } from "../database";
-import { contracts, bn997, formatUnitsBN, getBN, log, bn1000, buildLog, bn1000_sqr, bn997000, bn997_sqr, ZERO } from "../utils/general";
+import { contracts, bn997, formatUnitsBN, getBN, log, bn1000, buildLog, bn1000_sqr, bn997000, bn997_sqr, ZERO, ONE } from "../utils/general";
 import { AbiItem } from 'web3-utils'
 import { IToken } from "../address/coin";
 import { BigNumber } from "bignumber.js";
 import { getPriceOnUniV2 } from "./uniswapV2/uniswapV2TypeWeb3";
 import { Transaction } from "web3-core/types/index";
-import { swapETHForExactTokens, swapExactETHForTokensSupportingFeeOnTransferTokens, swapExactTokensForETH, swapExactTokensForETHSupportingFeeOnTransferTokens, swapExactTokensForTokens, swapExactTokensForTokensSupportingFeeOnTransferTokens, swapTokensForExactETH, swapTokensForExactTokens } from "./scan_functions";
+import { swapExactETHForTokensSupportingFeeOnTransferTokens, swapExactTokensForETHSupportingFeeOnTransferTokens, swapExactTokensForTokensSupportingFeeOnTransferTokens, swapWithoutFeeSupport} from "./scan_functions";
 import { watchTokens } from "./routes";
+import { getMinProfit } from "../utils/minProfitForCoin";
 const { request, gql } = require('graphql-request')
 
 
@@ -21,13 +22,13 @@ export function calculateOptimalInput(reserveIn1: BigNumber, reserveOut1: BigNum
 
 
 
-    var gyok = (reserveIn1.multipliedBy(reserveIn2).multipliedBy(reserveOut1).multipliedBy(reserveOut2)).sqrt().decimalPlaces(0)
+    var gyok = (reserveIn1.multipliedBy(reserveIn2).multipliedBy(reserveOut1).multipliedBy(reserveOut2)).sqrt().decimalPlaces(0, 1)
 
     var szamlalo = (bn1000_sqr.negated().multipliedBy(reserveIn1).multipliedBy(reserveIn2)).plus(bn997000.multipliedBy(gyok))
 
     var nevezo = bn997000.multipliedBy(reserveIn2).plus(bn997_sqr.multipliedBy(reserveOut1))
 
-    var optimal: BigNumber = (szamlalo).div(nevezo).decimalPlaces(0)
+    var optimal: BigNumber = (szamlalo).div(nevezo).decimalPlaces(0, 1)
     return optimal
 }
 
@@ -37,14 +38,16 @@ export function calculateProfit(amountIn: BigNumber, reserveIn1: BigNumber, rese
     var nevezo = bn1000_sqr.multipliedBy(reserveIn1).multipliedBy(reserveIn2).plus(
         amountIn.multipliedBy((bn997000.multipliedBy(reserveIn2)).plus(bn997_sqr.multipliedBy(reserveOut1)))
     )
-    return nevezo.eq(ZERO) ? ZERO : (szamlalo.div(nevezo)).minus(amountIn).decimalPlaces(0)
+    return nevezo.eq(ZERO) ? ZERO : (szamlalo.div(nevezo)).minus(amountIn).decimalPlaces(0, 1)
 }
 
 export async function getTokenData(address: string): Promise<IToken> {
 
     var symbol: string = ''
     var decimals: number = 0
-    var result = await findSymbolByAddress(address, async function (res: QueryResult<any>, error: string) {
+    var blacklisted: boolean = false
+    var minimum: string = '0'
+    await findSymbolByAddress(address, async function (res: QueryResult<any>, error: string) {
         if (error != '') {
             log(error)
         } else {
@@ -53,15 +56,21 @@ export async function getTokenData(address: string): Promise<IToken> {
                 let tokenContract = new ipcProvider.eth.Contract(IERC20Metadata.abi as AbiItem[], address)
                 symbol = await tokenContract.methods.symbol().call()
                 decimals = await tokenContract.methods.decimals().call()
+                let [minimumT, blacklistedT] = await getMinProfit(address)
+                blacklisted = blacklistedT
+                minimum = minimumT
+
                 // log(`symbol: ${symbol}`)
                 // log(`decimals: ${decimals}`)
                 // log(`Inserting token data into DB.`)
-                insertTokenData(symbol, address, decimals)
+                insertTokenData(symbol, address, decimals, minimumT, blacklistedT)
             } else {
 
                 // log(`Token data found in DB`)
                 symbol = res.rows[0]['symbol']
                 decimals = res.rows[0]['decimals']
+                blacklisted = res.rows[0]['blacklisted']
+                minimum = res.rows[0]['minimum']
                 // log(`symbol: ${symbol}`)
                 // log(`address: ${res.rows[0]['address']}`)
                 // log(`decimals: ${decimals}`)
@@ -74,7 +83,9 @@ export async function getTokenData(address: string): Promise<IToken> {
     return {
         symbol: symbol,
         decimals: decimals,
-        address: address
+        address: address,
+        minimum: minimum,
+        blacklisted: blacklisted
     }
 }
 
@@ -205,7 +216,7 @@ export async function getDirectPairReserves(tokenA: IToken, tokenB: IToken): Pro
     return graphql['block']
 }
 
-export async function getReserves(tA: string, tB: string, dexAddress: string): Promise<[BigNumber, BigNumber]> {
+export async function getReserves(tA: string, tB: string, dexAddress: string): Promise<[BigNumber, BigNumber, string]> {
 
     let [tokenA, tokenB, swapped] = sort(tA, tB)
 
@@ -232,12 +243,16 @@ export async function getReserves(tA: string, tB: string, dexAddress: string): P
     // log(`pair address: ${pairAddress}`)
 
     var uniV2Pair = new ipcProvider.eth.Contract(univ2pair.abi as AbiItem[], pairAddress)
-    var reserves = await uniV2Pair.methods.getReserves().call()
+    try {
+        var reserves = await uniV2Pair.methods.getReserves().call()
+    } catch(error) {
+        return [ZERO, ZERO, pairAddress]
+    }
 
     if (swapped) {
-        return [new BigNumber(reserves['reserve1']), new BigNumber(reserves['reserve0'])]
+        return [new BigNumber(reserves['reserve1']), new BigNumber(reserves['reserve0']), pairAddress]
     } else {
-        return [new BigNumber(reserves['reserve0']), new BigNumber(reserves['reserve1'])]
+        return [new BigNumber(reserves['reserve0']), new BigNumber(reserves['reserve1']), pairAddress]
     }
 
 }
@@ -247,8 +262,15 @@ export function getAmountOut(reserveIn: BigNumber, reserveOut: BigNumber, amount
     var amountInWithFee: BigNumber = amountIn.multipliedBy(bn997)
     var numerator: BigNumber = amountInWithFee.multipliedBy(reserveOut)
     var denominator: BigNumber = reserveIn.multipliedBy(bn1000).plus(amountInWithFee)
-    return numerator.div(denominator).decimalPlaces(0)
+    return numerator.div(denominator).decimalPlaces(0, 1)
 
+}
+
+export function getAmountIn(reserveIn: BigNumber, reserveOut: BigNumber, amountOut: BigNumber): BigNumber {
+    var numerator: BigNumber = reserveIn.multipliedBy(amountOut).multipliedBy(bn1000)
+    var denominator: BigNumber = reserveOut.minus(amountOut).multipliedBy(bn997)
+    // log((numerator.div(denominator)).plus(ONE).toString(10))
+    return (numerator.div(denominator)).plus(ONE).decimalPlaces(0, 1)
 }
 
 export type GasSetting = {
@@ -298,13 +320,13 @@ export async function scan() {
                 let funcBits = tx.input.slice(2, 10)
                 switch (funcBits) {
                     case '38ed1739': //swapExactTokensForTokens 
-                        await swapExactTokensForTokens(abiDecoder, tx, methods, funcBits, 'swapExactTokensForTokens', logText, gas)
+                        swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapExactTokensForTokens', logText, gas)
                         break
                     case '7ff36ab5': //swapExactETHForTokens
-                        await swapExactTokensForTokens(abiDecoder, tx, methods, funcBits, 'swapExactETHForTokens', logText, gas)
+                        swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapExactETHForTokens', logText, gas)
                         break
                     case '18cbafe5': //swapExactTokensForETH
-                        swapExactTokensForETH()
+                        swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapExactTokensForETH', logText, gas)
                         break
                     case 'b6f9de95': //swapExactETHForTokensSupportingFeeOnTransferTokens
                         swapExactETHForTokensSupportingFeeOnTransferTokens()
@@ -316,25 +338,20 @@ export async function scan() {
                         swapExactTokensForTokensSupportingFeeOnTransferTokens()
                         break
                     case 'fb3bdb41': //swapETHForExactTokens
-                        swapETHForExactTokens()
+                        swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapETHForExactTokens', logText, gas)
                         break
                     case '4a25d94a': //swapTokensForExactETH
-                        swapTokensForExactETH()
+                        swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapTokensForExactETH', logText, gas)
                         break
                     case '8803dbee': //swapTokensForExactTokens
-                        swapTokensForExactTokens()
+                        swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapTokensForExactTokens', logText, gas)
                         break
                     default:
                         log(`Function not needed. Skipping.\t${methods[funcBits]['name']}`)
                         break
-
                 }
 
-                // log(`-------------------------------------------------------------------`)
             }
-
         }
-
     })
-
 }

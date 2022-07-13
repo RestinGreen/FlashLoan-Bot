@@ -4,11 +4,11 @@ import { Coin, IToken } from "../address/coin";
 import { address_dex } from "../address/dex_data";
 import { ipcProvider } from "../config";
 import { buildLog, formatUnitsBN, getBN, log } from "../utils/general";
-import { checkArbitrage } from "./async_direct_price_index";
+import { checkArbitrage, checkArbitrageTest } from "./price_index";
 import { getAmountOut, GasSetting, getReserves, getTokenData, getDirectPairReserves, decodeStorageSlot } from "./mempoolscan";
 import { watchTokenAddresses, watchTokens } from "./routes";
 
-export async function swapExactTokensForTokens(
+export async function swapWithoutFeeSupport(
     abiDecoder: any,
     tx: Transaction,
     methods: any,
@@ -43,6 +43,12 @@ export async function swapExactTokensForTokens(
     for (let i = 0; i < decoded_input['params'][2].value.length - 1; i++) {
         let tokenAAddress = decoded_input['params'][2].value[i]
         let tokenBAddress = decoded_input['params'][2].value[i + 1]
+        let tokenA: IToken = await getTokenData(tokenAAddress)
+        let tokenB: IToken = await getTokenData(tokenBAddress)
+        if (tokenB.blacklisted) {
+            log(`blacklisted ${tokenB.symbol}`)
+            continue
+        }
         
         // if (!watchTokenAddresses.includes(tokenBAddress)) {
         //     log(`TokenB |${(await getTokenData(tokenBAddress)).symbol}|is not supported. Skipping`)
@@ -53,8 +59,6 @@ export async function swapExactTokensForTokens(
 
         let tokenASoldAmount: BigNumber = new BigNumber(simulationResult[0][i], 10)
         let tokenBBoughtAmount: BigNumber = new BigNumber(simulationResult[0][i + 1], 10)
-        let tokenA: IToken = await getTokenData(tokenAAddress)
-        let tokenB: IToken = await getTokenData(tokenBAddress)
         log(`sold:\t\t${tokenA.symbol}\t${formatUnitsBN(tokenASoldAmount, tokenA.decimals)}`)
         // logText += buildLog(`sold:\t\t${tokenA.symbol}\t${formatUnitsBN(tokenASoldAmount, tokenA.decimals)}`)
         log(`bought:\t${tokenB.symbol}\t${formatUnitsBN(tokenBBoughtAmount, tokenB.decimals)}`)
@@ -64,6 +68,10 @@ export async function swapExactTokensForTokens(
 
         var reserves = await getDirectPairReserves(tokenA, tokenB)
         var [tokenAReserve, tokenBReserve]: [BigNumber, BigNumber] = decodeStorageSlot(reserves[`${tokenA.symbol}${tokenB.symbol}${address_dex.get(tx.to!)}`]['storage'], tokenA.address, tokenB.address)
+        var pair1 = reserves[`${tokenA.symbol}${tokenB.symbol}${address_dex.get(tx.to!)}`]['address']
+        // var [tokenAReserve, tokenBReserve, pair1]: [BigNumber, BigNumber, string] = await getReserves(tokenAAddress, tokenBAddress, tx.to!)
+        // log(tokenAReserve.toString(10))
+        // log(tokenBReserve.toString(10))
         let simulatedTokenAReserve: BigNumber = tokenAReserve.plus(tokenASoldAmount)
         let simulatedTokenBReserve: BigNumber = tokenBReserve.minus(tokenBBoughtAmount)
 
@@ -81,17 +89,10 @@ export async function swapExactTokensForTokens(
 
 
 
-        checkArbitrage(tokenA, tokenB, address_dex.get(tx.to!)!, logText, tx, gas, reserves, simulatedTokenAReserve, simulatedTokenBReserve )
+        checkArbitrage(tokenA, tokenB, address_dex.get(tx.to!)!, logText, tx, gas, reserves, simulatedTokenAReserve, simulatedTokenBReserve, pair1)
     }
 }
 
-export async function swapETHForExactTokens() {
-    log(`swapETHForExactTokens`)
-}
-
-export async function swapExactTokensForETH() {
-    log(`swapExactTokensForETH`)
-}
 export async function swapExactETHForTokensSupportingFeeOnTransferTokens() {
     log(`swapExactETHForTokensSupportingFeeOnTransferTokens`)
 }
@@ -102,12 +103,4 @@ export async function swapExactTokensForETHSupportingFeeOnTransferTokens() {
 
 export async function swapExactTokensForTokensSupportingFeeOnTransferTokens() {
     log(`swapExactTokensForTokensSupportingFeeOnTransferTokens`)
-}
-
-export async function swapTokensForExactETH() {
-    log('swapTokensForExactETH')
-}
-
-export async function swapTokensForExactTokens() {
-    log(`swapTokensForExactTokens`)
 }

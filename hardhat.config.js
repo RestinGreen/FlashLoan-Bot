@@ -25,7 +25,7 @@ module.exports = {
     settings: {
       optimizer: {
         enabled: true,
-        runs: 200
+        runs: 20000
       }
     }
   },
@@ -36,7 +36,18 @@ module.exports = {
     },
     test: {
       url: 'http://127.0.0.1:8888',
-      // accounts: [process.env.WALLET_PRIVATE_KEY]
+      accounts: [process.env.WALLET_PRIVATE_KEY]
+    },
+    hardhat: {
+
+      forking: {
+        url: "https://polygon-mainnet.g.alchemy.com/v2/kLQlGBCvwKLhyFtlglA117qDFHjxURUD"
+      },
+      mining: {
+        auto: false,
+        interval: 10000
+      },
+      
     }
   },
   paths: {

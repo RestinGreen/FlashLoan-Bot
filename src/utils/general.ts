@@ -15,7 +15,7 @@ export const getBigNumber = (amount: number | BigNumber, decimals: number = 18) 
 }
 
 export const ZERO = new BigNumber(0)
-// export const ZERO = BigNumber.from(0)
+export const ONE = new BigNumber(1)
 export const bn997 = new BigNumber(997)
 export const bn997_sqr = bn997.multipliedBy(bn997)
 export const bn1000 = new BigNumber(1000)

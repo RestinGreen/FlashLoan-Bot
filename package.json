@@ -18,7 +18,7 @@
     "test": "clear && node ./dist/test_ts/test.js",
     "clean": "npx hardhat clean",
     "compile": "npx hardhat compile",
-    "dep": "npx hardhat run --network local ./scripts/deploy.js",
+    "dep": "npx hardhat run --network test ./scripts/deploy.js",
     "deploy": "npm run clean && npm run compile && npm run dep"
   },
   "dependencies": {

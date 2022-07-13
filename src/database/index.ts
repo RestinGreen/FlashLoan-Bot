@@ -2,6 +2,7 @@ import { isNoResultFoundError } from '@databases/pg-typed'
 import { Pool, Client, QueryResult } from 'pg'
 import { IToken } from '../address/coin'
 import { log } from '../utils/general'
+import { getMinProfit } from '../utils/minProfitForCoin'
 
 const client = new Client({
   host: 'localhost',
@@ -40,8 +41,8 @@ export const findSymbolByAddress = async (address: string, callback) => {
   return await client.query(`select * from tokens where address='${address}'`).then(async (result: QueryResult<any>) => {
 
     // if (!error) {
-    var res = await callback(result, '')
-    return res
+    await callback(result, '')
+    // return res
     // } else {
     // callback([], error.message)
     // }
@@ -52,13 +53,21 @@ export const findSymbolByAddress = async (address: string, callback) => {
 
 }
 
-export const insertTokenData = (symbol: string, address: string, decimals: number) => {
-  client.query(`insert into tokens (symbol, address, decimals) values ('${symbol}', '${address}', '${decimals}')`, (error: Error) => {
+
+export const insertTokenData = async (symbol: string, address: string, decimals: number, minimum: string, blacklisted: boolean) => {
+
+  let cleanSymbol: string = symbol.replace(/[^a-zA-Z ]/g, "")
+  if (cleanSymbol == "") {
+    cleanSymbol = "FOO"
+  }
+  
+
+  client.query(`insert into tokens (symbol, address, decimals, minimum, blacklisted) values ('${cleanSymbol}', '${address}', '${decimals}', '${minimum}', '${blacklisted}')`, (error: Error) => {
 
     if (error) {
       log(error.message)
     } else {
-      // log(`inserted new token data => ${symbol} | ${address} | ${decimals}`)
+      log(`inserted new token data => ${symbol} | ${address} | ${decimals}`)
     }
     client.end
   })
@@ -74,7 +83,9 @@ export const selectAll = async (): Promise<IToken[]> => {
     let token: IToken = {
       address: res.rows[i]['address'],
       decimals: res.rows[i]['decimals'],
-      symbol: res.rows[i]['symbol']
+      symbol: res.rows[i]['symbol'],
+      blacklisted: res.rows[i]['blacklisted'],
+      minimum: res.rows[i]['minimum']
     }
     arr.push(token)
   }
@@ -93,4 +104,30 @@ export const insertProfit = (
   tokenBout: string) => {
 
   client.query(`insert into found`)
+}
+
+export function updateMinimum(min: string, address: string) {
+
+  client.query(`update tokens set minimum = ${min} where address like '${address}'`, (error: Error) => {
+
+    if (error) {
+      log(error.message)
+    } else {
+      // log(`updated ${address} minimum to ${min}`)
+    }
+    client.end
+  })
+}
+
+export function blacklist(address: string) {
+
+  client.query(`update tokens set blacklisted = true, minimum = 0 where address like '${address}'`, (error: Error) => {
+
+    if (error) {
+      log(error.message)
+    } else {
+      // log(`${address} blacklisted`)
+    }
+    client.end
+  })
 }
