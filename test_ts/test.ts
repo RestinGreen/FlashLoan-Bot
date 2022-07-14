@@ -423,9 +423,9 @@ function createWallet() {
 async function getMinProfit() {
 
     const USDC = Coin.USDC
-    const minUSDC = getBN(0.01, USDC.decimals)
+    const minUSDC = getBN(0.5, USDC.decimals)
     const WMATIC = Coin.WMATIC
-    const minWMATIC = getBN(0.01, WMATIC.decimals)
+    const minWMATIC = getBN(0.5, WMATIC.decimals)
     var tokens: IToken[] = await selectAll()
     // type Table = {
     //     symbolA: string
@@ -439,6 +439,14 @@ async function getMinProfit() {
     // var table: Table[] = []
     for (let i = 0; i < tokens.length; i++) {
         let token = tokens[i]
+        if (token.symbol == USDC.symbol) {
+            updateMinimum(minUSDC.toString(10), token.address)
+            continue
+        }
+        if (token.symbol == WMATIC.symbol) {
+            updateMinimum(minWMATIC.toString(10), token.address)
+            continue
+        }
         var [reserve0, reserve1, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, USDC.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
         var [reserve00, reserve11, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, WMATIC.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
         if (!reserve0.isZero() && !reserve00.isZero() && !reserve1.isZero() && !reserve11.isZero()) {
@@ -475,6 +483,7 @@ async function getMinProfit() {
 
     }
 
+    log('done')
     // console.table(table)
     // console.log(table.length)
 

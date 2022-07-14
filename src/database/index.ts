@@ -108,7 +108,7 @@ export const insertProfit = (
 
 export function updateMinimum(min: string, address: string) {
 
-  client.query(`update tokens set minimum = ${min} where address like '${address}'`, (error: Error) => {
+  client.query(`update tokens set minimum = ${min}, blacklisted = false where address like '${address}'`, (error: Error) => {
 
     if (error) {
       log(error.message)

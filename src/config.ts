@@ -37,10 +37,15 @@ export const ipcProvider = new Web3(new Web3.providers.IpcProvider("/home/matic/
 0x06dd5932bf703816Ba943F74b0cF9D53adD0677C
 */
 
-export const arbContractAddress: string = "0x11FF9B48BDec429F27f9383ae8C970DB3f32B859"
+export const arbContractAddress: string = "0x73ae3956765AD715865A1bdDD16F7efE6921eC4E"
 export const walletPrivateKey: string = process.env.WALLET_PRIVATE_KEY!
+export const account1Key: string = process.env.ACCOUNT1!
+export const account2Key: string = process.env.ACCOUNT2!
 
 export const myAccount = ipcProvider.eth.accounts.privateKeyToAccount(walletPrivateKey)
+export const account1 = ipcProvider.eth.accounts.privateKeyToAccount(account1Key)
+export const account2 = ipcProvider.eth.accounts.privateKeyToAccount(account2Key)
+
 export const arbContract = new ipcProvider.eth.Contract(ArbContractAbi as AbiItem[], arbContractAddress, 
     {
         from: myAccount.address,

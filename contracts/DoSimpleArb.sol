@@ -26,7 +26,7 @@ contract DoSimpleArb is Ownable {
         address flashToken,
         address paybackToken,
         address[] memory path
-    ) external onlyOwner {
+    ) external {
         
         (uint112 _reserve00, uint112 _reserve01,) = IUniswapV2Pair(path[0]).getReserves();
         uint256 paybackAmount = getAmountIn(
