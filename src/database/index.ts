@@ -56,7 +56,7 @@ export const findSymbolByAddress = async (address: string, callback) => {
 
 export const insertTokenData = async (symbol: string, address: string, decimals: number, minimum: string, blacklisted: boolean) => {
 
-  let cleanSymbol: string = symbol.replace(/[^a-zA-Z ]/g, "")
+  let cleanSymbol: string = symbol.replace(/[^a-zA-Z ()]/g, "")
   if (cleanSymbol == "") {
     cleanSymbol = "FOO"
   }

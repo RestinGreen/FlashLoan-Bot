@@ -26,17 +26,6 @@ async function executeArbitrage(
         params?.paybackToken,
         params?.path)
 
-    arbContract.methods.printMoney(
-        params?.flashAmount,
-        params?.flashToken,
-        params?.paybackToken,
-        params?.path).estimateGas()
-        .then((gas: any) => {
-            log(`gas: ${gas}`)
-        }).catch((error: any) => {
-            log(error)
-        })
-
     const functionAbi = arbFunction.encodeABI();
 
 
@@ -99,10 +88,8 @@ export const checkArbitrage = (tokenA: IToken, tokenB: IToken, skipDex: string, 
             var pair2 = reserves[`${tokenA.symbol}${tokenB.symbol}${dex}`]['address']
             const optimalInput = calculateOptimalInput(simulatedReserveB, simulatedReserveA, reserveA2, reserveB2)
 
-
-
             if (optimalInput.gt(ZERO)) {
-                log(`optimal input ${formatUnitsBN(optimalInput, tokenB.decimals)} ${tokenB.symbol}`)
+                log(`optimal input ${formatUnitsBN(optimalInput, tokenB.decimals)} ${tokenB.symbol} ${dex}`)
                 profit = calculateProfit(optimalInput, simulatedReserveB, simulatedReserveA, reserveA2, reserveB2)
                 if (profit.gt(optimalInput.multipliedBy(0.003)) && profit.gt(max)) {
                     max = profit
@@ -119,18 +106,18 @@ export const checkArbitrage = (tokenA: IToken, tokenB: IToken, skipDex: string, 
             }
         }
     })
-    if (!max.isEqualTo(ZERO)) {
-        var minimum: BigNumber = new BigNumber(tokenB.minimum!, 10)
-        log(`minimum: ${formatUnitsBN(minimum, tokenB.decimals)} ${tokenB.symbol}`)
-        if (max.gt(minimum)) {
-            executeArbitrage(params, gas, myAccount.address, walletPrivateKey)
-            executeArbitrage(params, gas, account1.address, account1Key)
-            executeArbitrage(params, gas, account2.address, account2Key)
-            notify()
-            log(`\x1b[38;2;124;252;0mprofit: ${formatUnitsBN(profit, tokenB.decimals)} ${tokenB.symbol}\x1b[0m`)
-        }
-
+    var minimum: BigNumber = new BigNumber(tokenB.minimum!, 10)
+    log(`minimum profit: ${formatUnitsBN(minimum, tokenB.decimals)} ${tokenB.symbol}`)
+    if (max.gt(minimum)) {
+        executeArbitrage(params, gas, myAccount.address, walletPrivateKey)
+        executeArbitrage(params, gas, account1.address, account1Key)
+        executeArbitrage(params, gas, account2.address, account2Key)
+        notify()
+        log(`\x1b[38;2;124;252;0mprofit: ${formatUnitsBN(max, tokenB.decimals)} ${tokenB.symbol}\x1b[0m`)
+    } else {
+        log(`profit: ${formatUnitsBN(max, tokenB.decimals)} ${tokenB.symbol}`)
     }
+
 }
 
 export const checkArbitrageTest = async (
@@ -163,7 +150,7 @@ export const checkArbitrageTest = async (
 
             const optimalInput = calculateOptimalInput(simulatedReserveB, simulatedReserveA, reserveA2, reserveB2)
             if (optimalInput.gt(ZERO)) {
-                log(`optimal input ${formatUnitsBN(optimalInput, tokenB.decimals)} ${tokenB.symbol}`)
+                log(`optimal input ${dex} ${formatUnitsBN(optimalInput, tokenB.decimals)} ${tokenB.symbol}`)
                 const profit = calculateProfit(optimalInput, simulatedReserveB, simulatedReserveA, reserveA2, reserveB2)
                 if (profit.gt(optimalInput.multipliedBy(0.003)) && profit.gt(max)) {
                     max = profit

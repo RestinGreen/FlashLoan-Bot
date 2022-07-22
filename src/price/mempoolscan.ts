@@ -1,5 +1,6 @@
 var abiDecoder = require('abi-decoder');
-import abiv2 from "@uniswap/v2-periphery/build/IUniswapV2Router02.json"
+import abiv2r2 from "@uniswap/v2-periphery/build/IUniswapV2Router02.json"
+import dystopia from "../abis/DYSTOPYA_ROUTER.json"
 import univ2pair from "@uniswap/v2-core/build/IUniswapV2Pair.json"
 import IERC20Metadata from "../abis/IERC20Metadata.json"
 import { QueryResult } from "pg";
@@ -122,10 +123,6 @@ export function calculatePairAddress(tA: string, tB: string, dexAddress: string)
 
     var hashEncoded: string = ipcProvider.utils.keccak256(encoded!)
     return '0x' + hashEncoded.substring(hashEncoded.length - 40)
-}
-
-type GraphqlResponse = {
-    [pairDexComp: string]: string
 }
 
 export function decodeStorageSlot(storage: string, tokenA: string, tokenB: string): [BigNumber, BigNumber] {
@@ -283,24 +280,50 @@ export type GasSetting = {
 
 export async function scan() {
 
-    abiDecoder.addABI(abiv2.abi)
+    abiDecoder.addABI(abiv2r2.abi)
 
 
     var methods = abiDecoder.getMethodIDs()
-    // console.log(methods)
+    console.log(methods)
     wsProvider.eth.subscribe('pendingTransactions', async (error: Error, hash: string) => {
         if (error) {
             log(error.message)
         } else {
             var tx: Transaction = await ipcProvider.eth.getTransaction(hash)
             if (tx != null && (
-                tx.to == '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506'       //sushiswap
-                || tx.to == '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff'    //quickswap
-                || tx.to == '0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607'    //apeswap
-                || tx.to == '0x5C6EC38fb0e2609672BDf628B1fD605A523E5923'    //jetswap
-                || tx.to == '0x94930a328162957FF1dd48900aF67B5439336cBD'    //polycat
-                || tx.to == '0x3a1D87f206D12415f5b0A33E786967680AAb4f6d')) {//waultswap
-
+                tx.to == dex_dict['SUSHISWAP'].router
+                || tx.to == dex_dict['QUICKSWAP'].router
+                || tx.to == dex_dict['APESWAP'].router
+                || tx.to == dex_dict['JETSWAP'].router
+                || tx.to == dex_dict['POLYCAT'].router
+                || tx.to == dex_dict['WAULTSWAP'].router
+                || tx.to == dex_dict['DFYN_NETWORK'].router
+                || tx.to == dex_dict['UNNAMED_1'].router
+                || tx.to == dex_dict['UNNAMED_2'].router
+                || tx.to == dex_dict['VULCAN'].router
+                || tx.to == dex_dict['DEX'].router
+                || tx.to == dex_dict['UNNAMED_3'].router
+                || tx.to == dex_dict['GRAVIS'].router
+                || tx.to == dex_dict['AURA'].router
+                || tx.to == dex_dict['ELK'].router
+                || tx.to == dex_dict['DINOSWAP'].router
+                || tx.to == dex_dict['GREENHOUSE'].router
+                || tx.to == dex_dict['DXSWAP'].router
+                || tx.to == dex_dict['FRAXSWAP'].router
+                || tx.to == dex_dict['UNNAMED_4'].router
+                || tx.to == dex_dict['FESWAP'].router
+                || tx.to == dex_dict['BOLTR'].router
+                || tx.to == dex_dict['UNNAMED_5'].router
+                || tx.to == dex_dict['SAFESWAP'].router
+                || tx.to == dex_dict['UNNAMED_6'].router
+                || tx.to == dex_dict['CAFE'].router
+                || tx.to == dex_dict['UNNAMED_7'].router
+                || tx.to == dex_dict['SMART'].router
+                || tx.to == dex_dict['UNIFI'].router
+                || tx.to == dex_dict['BAZOOKA'].router
+                || tx.to == dex_dict['EAGON'].router
+                || tx.to == dex_dict['JAVA'].router
+            )) {
                 var gas: GasSetting = {
                     //@ts-ignore
                     type: tx.type,
@@ -347,6 +370,7 @@ export async function scan() {
                         swapWithoutFeeSupport(abiDecoder, tx, methods, funcBits, 'swapTokensForExactTokens', logText, gas)
                         break
                     default:
+                        log(funcBits)
                         log(`Function not needed. Skipping.\t${methods[funcBits]['name']}`)
                         break
                 }

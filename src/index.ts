@@ -6,8 +6,6 @@ import { Graph, Node } from "./types/graph"
 import { ethers } from "ethers"
 import { RouteNode } from "./types/maxRoute"
 import { scan } from "./price/mempoolscan"
-import { block$, query$ } from "./__generated/fetchers"
-import { execute, setGraphQLExecutor } from "./__generated"
 import { RequestInfo, RequestInit } from "node-fetch"
 
 const fetch = require("node-fetch")

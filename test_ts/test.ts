@@ -8,8 +8,6 @@ import { address_dex, DexType, dex_dict } from "../src/address/dex_data"
 import { getPriceOnUniV2, getPriceOnUniV2Promise, getPriceOnUniV2Request } from "../src/price/uniswapV2/uniswapV2TypeWeb3"
 import { getPriceOnUniV3, getPriceOnUniV3Promise } from "../src/price/uniswapV3/uniswapV3TypeWeb3"
 import { ipcProvider, wsProvider } from "../src/config"
-import { account$, account$$, block$, query$ } from "../src/__generated/fetchers"
-import { execute, setGraphQLExecutor } from "../src/__generated"
 import { ParameterRef } from "graphql-ts-client-api"
 import { createFieldOptions } from "graphql-ts-client-api/dist/FieldOptions"
 import { getAmountOut, calculatePairAddress, getReserves, getDirectPairReserves, decodeStorageSlot, getAmountIn } from "../src/price/mempoolscan"
@@ -291,24 +289,6 @@ export async function executeGraphQL(request: string, variables: object): Promis
     });
     return await response.json();
 }
-async function test() {
-
-    setGraphQLExecutor(executeGraphQL)
-    const query = query$.block(
-        block$.number
-    )
-
-
-
-
-    log(query.toString())
-    var start = Date.now()
-    const resp = await execute(query)
-
-    // decodeStorageSlot(resp.block?.account.storage!)
-    log(resp)
-    log(Date.now() - start)
-}
 
 async function slip() {
     var c = contracts.get("QUICKSWAP")!.router
@@ -423,20 +403,22 @@ function createWallet() {
 async function getMinProfit() {
 
     const USDC = Coin.USDC
-    const minUSDC = getBN(0.5, USDC.decimals)
+    const minUSDC = getBN(0.3, USDC.decimals)
     const WMATIC = Coin.WMATIC
-    const minWMATIC = getBN(0.5, WMATIC.decimals)
+    const minWMATIC = getBN(0.3, WMATIC.decimals)
+    const WETH = Coin.WETH
+    const minWETH = getBN(0.0000063, WETH.decimals)
     var tokens: IToken[] = await selectAll()
-    // type Table = {
-    //     symbolA: string
-    //     symbolB: string
-    //     reserve0: string
-    //     reserve1: string
-    //     pair: string
-    //     min: number
-    // }
+    type Table = {
+        symbolA: string
+        symbolB: string
+        reserve0: string
+        reserve1: string
+        pair: string
+        min: number
+    }
 
-    // var table: Table[] = []
+    var table: Table[] = []
     for (let i = 0; i < tokens.length; i++) {
         let token = tokens[i]
         if (token.symbol == USDC.symbol) {
@@ -447,32 +429,48 @@ async function getMinProfit() {
             updateMinimum(minWMATIC.toString(10), token.address)
             continue
         }
+        if (token.symbol == WETH.symbol) {
+            updateMinimum(minWETH.toString(10), token.address)
+            continue
+        }
         var [reserve0, reserve1, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, USDC.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
         var [reserve00, reserve11, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, WMATIC.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
-        if (!reserve0.isZero() && !reserve00.isZero() && !reserve1.isZero() && !reserve11.isZero()) {
+        var [reserve000, reserve111, pair]: [BigNumber, BigNumber, string] = await getReserves(token.address, WETH.address, '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff')
+        if ((!reserve0.isZero() && !reserve1.isZero()) || (!reserve00.isZero() && !reserve11.isZero()) || (!reserve000.isZero() && !reserve111.isZero())) {
             let min1 = getAmountIn(reserve0, reserve1, minUSDC)
             let min2 = getAmountIn(reserve00, reserve11, minWMATIC)
-            if (min1.gt(ZERO) || min2.gt(ZERO)) {
-                if (min1.gt(min2)) {
-                    // table.push({
-                    //     symbolA: token.symbol,
-                    //     symbolB: USDC.symbol,
-                    //     reserve0: reserve0.toString(10),
-                    //     reserve1: reserve1.toString(10),
-                    //     pair: pair,
-                    //     min: min1.toNumber()//formatUnitsBN(min1, token.decimals)
-                    // })
+            let min3 = getAmountIn(reserve000, reserve111, minWETH)
+            if (min1.gt(ZERO) || min2.gt(ZERO) || min3.gt(ZERO)) {
+                if (min1.gt(min2) && min1.gt(min3)) {
+                    table.push({
+                        symbolA: token.symbol,
+                        symbolB: USDC.symbol,
+                        reserve0: reserve0.toString(10),
+                        reserve1: reserve1.toString(10),
+                        pair: pair,
+                        min: min1.toNumber()//formatUnitsBN(min1, token.decimals)
+                    })
                     updateMinimum(min1.toString(10), token.address)
-                } else {
-                    // table.push({
-                    //     symbolA: token.symbol,
-                    //     symbolB: WMATIC.symbol,
-                    //     reserve0: reserve00.toString(10),
-                    //     reserve1: reserve11.toString(10),
-                    //     pair: pair,
-                    //     min: min2.toNumber()//formatUnitsBN(min2, token.decimals)
-                    // })
+                } else if (min2.gt(min1) && min2.gt(min3)){
+                    table.push({
+                        symbolA: token.symbol,
+                        symbolB: WMATIC.symbol,
+                        reserve0: reserve00.toString(10),
+                        reserve1: reserve11.toString(10),
+                        pair: pair,
+                        min: min2.toNumber()//formatUnitsBN(min2, token.decimals)
+                    })
                     updateMinimum(min2.toString(10), token.address)
+                } else if (min3.gt(min1) && min3.gt(min2)) {
+                    table.push({
+                        symbolA: token.symbol,
+                        symbolB: WETH.symbol,
+                        reserve0: reserve000.toString(10),
+                        reserve1: reserve111.toString(10),
+                        pair: pair,
+                        min: min3.toNumber()//formatUnitsBN(min3, token.decimals)
+                    })
+                    updateMinimum(min3.toString(10), token.address)
                 }
             } else {
                 blacklist(token.address)
@@ -484,9 +482,81 @@ async function getMinProfit() {
     }
 
     log('done')
-    // console.table(table)
-    // console.log(table.length)
+    console.table(table)
+    console.log(table.length)
 
 }
 
+function charremove() {
+
+    let x = 'asd `2.0 (POS)'
+    x = x.replace(/[^a-zA-Z ()]/g, "")
+    log(x)
+}
+
+import abiv2r2 from "@uniswap/v2-periphery/build/IUniswapV2Router02.json"
+import { Transaction } from "web3-core/types/index";
+function newDex() {
+
+    var dexs = [
+        '0x1b02dA8Cb0d097eB8D57A175b88c7D8b47997506',
+        '0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff',
+        '0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607',
+        '0x5C6EC38fb0e2609672BDf628B1fD605A523E5923',
+        '0x94930a328162957FF1dd48900aF67B5439336cBD',
+        '0x3a1D87f206D12415f5b0A33E786967680AAb4f6d',
+        '0xA102072A4C07F06EC3B4900FDC4C7B80b6c57429',
+        '0x4237a813604bD6815430d55141EA2C24D4543e44',
+        '0xfBE675868f00aE8145d6236232b11C44d910B24a',
+        '0xfE0E493564DB7Ae23a7b6Ea07F2C633Ee8f25f22',
+        '0xdBe30E8742fBc44499EB31A19814429CECeFFaA0',
+        '0x93bcDc45f7e62f89a8e901DC4A0E2c6C427D9F25',
+        '0x711a119dCee9d076e9f4d680C6c8FD694DAaF68D',
+        '0x09Fd8B8ed6E30e583379Dc73b9261dF5E1A28b6F',
+        '0xf38a7A7Ac2D745E2204c13F824c00139DF831FFf',
+        '0x6AC823102CB347e1f5925C634B80a98A3aee7E03',
+        '0x324Af1555Ea2b98114eCb852ed67c2B5821b455b',
+        '0xaD340d0CD0B117B0140671E7cB39770e7675C848',
+        '0x9bc2152fD37b196C0Ff3C16f5533767c9A983971',
+        '0xAf877420786516FC6692372c209e0056169eebAf',
+        '0x938B544Ce2AE40B6dE0Ab728a69c37A60159689A',
+        '0x158d0b57Cc72509C3A9f476526887Ca8D7873fc4',
+        '0x57dE98135e8287F163c59cA4fF45f1341b680248',
+        '0xC02D3bbe950C4Bde21345c8c9Db58b7aF57C6668',
+        '0x751D346B92f3dce8813E6b6E248a11C534F4BdEa',
+        '0x94EA87Ec2f4B084b587eDf60aAbb28a53466ea51',
+        '0x9055682E58C74fc8DdBFC55Ad2428aB1F96098Fc',
+        '0xa5c17e5B45f22B15086c8d0246B98ebBC0edA05f',
+    ]
+
+    var found: string[] = []
+    var abiDecoder = require('abi-decoder');
+    abiDecoder.addABI(abiv2r2.abi)
+    wsProvider.eth.subscribe('pendingTransactions', async (error: Error, hash: string) => {
+        var tx: Transaction = await ipcProvider.eth.getTransaction(hash)
+        if (tx != null) {
+            let funcBits = tx.input.slice(2, 10)
+            switch (funcBits) {
+                case '38ed1739': //swapExactTokensForTokens 
+                case '7ff36ab5': //swapExactETHForTokens
+                case '18cbafe5': //swapExactTokensForETH
+                case 'b6f9de95': //swapExactETHForTokensSupportingFeeOnTransferTokens
+                case '791ac947': //swapExactTokensForETHSupportingFeeOnTransferTokens
+                case '5c11d795': //swapExactTokensForTokensSupportingFeeOnTransferTokens
+                case 'fb3bdb41': //swapETHForExactTokens
+                case '4a25d94a': //swapTokensForExactETH
+                case '8803dbee': //swapTokensForExactTokens
+                    if (dexs.indexOf(tx.to!) == -1 && found.indexOf(tx.to!) == -1) {
+                        console.log(tx.to)
+                        found.push(tx.to!)
+                    }
+                    break
+                default:
+                    // log(funcBits)
+                    // log(`Function not needed. Skipping.\t${methods[funcBits]['name']}`)
+                    break
+            }
+        }
+    })
+}
 getMinProfit()
